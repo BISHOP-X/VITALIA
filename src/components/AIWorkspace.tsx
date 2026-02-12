@@ -37,6 +37,7 @@ interface EnrichedPatient {
   id: number;
   name: string;
   age: number;
+  status: string;
   medical_history: MedicalHistory;
   recent_symptoms: Symptom[];
   consultations: Consultation[];
@@ -147,7 +148,7 @@ export function AIWorkspace({ patient }: AIWorkspaceProps) {
       ? "requires monitoring"
       : "stable";
     
-    const statusBullet = `**Current Status:** Vitals ${vitalStatus} (BP: ${patient.vitals.blood_pressure}, HR: ${patient.vitals.heart_rate}, O2: ${patient.vitals.oxygen_level}%). ${patient.consultations.length > 0 ? `Last seen: ${patient.consultations[0].date} - ${patient.consultations[0].diagnosis}.` : ""} ${patient.status === "alert" ? "⚠️ Requires immediate attention." : patient.status === "warning" ? "Monitor closely." : "Routine follow-up recommended."}`;
+    const statusBullet = `**Current Status:** Vitals ${vitalStatus} (BP: ${patient.vitals.blood_pressure}, HR: ${patient.vitals.heart_rate}, O2: ${patient.vitals.oxygen_level}%). ${patient.consultations.length > 0 ? `Last seen: ${patient.consultations[0].date} - ${patient.consultations[0].diagnosis}.` : ""} ${patient.status === "high" ? "⚠️ Requires immediate attention." : patient.status === "medium" ? "Monitor closely." : "Routine follow-up recommended."}`;
     
     const rundown: SmartRundown = {
       bullets: [historyBullet, recentBullet, statusBullet],

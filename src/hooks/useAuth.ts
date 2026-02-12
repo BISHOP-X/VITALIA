@@ -97,7 +97,6 @@ export function useAuth(): UseAuthReturn {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth event:', event)
         
         setState(prev => ({
           ...prev,
@@ -128,8 +127,6 @@ export function useAuth(): UseAuthReturn {
   // Sign in handler
   const handleSignIn = async (data: SignInData) => {
     if (state.isDemo) {
-      // Demo mode - just simulate success
-      console.log('Demo mode: Simulating sign in')
       return
     }
     
@@ -144,8 +141,6 @@ export function useAuth(): UseAuthReturn {
   // Sign up handler
   const handleSignUp = async (data: SignUpData) => {
     if (state.isDemo) {
-      // Demo mode - just simulate success
-      console.log('Demo mode: Simulating sign up')
       return
     }
 
@@ -160,7 +155,6 @@ export function useAuth(): UseAuthReturn {
   // Sign out handler
   const handleSignOut = async () => {
     if (state.isDemo) {
-      console.log('Demo mode: Simulating sign out')
       return
     }
 
@@ -175,7 +169,6 @@ export function useAuth(): UseAuthReturn {
   // Password reset handler
   const handleResetPassword = async (email: string) => {
     if (state.isDemo) {
-      console.log('Demo mode: Simulating password reset')
       return
     }
 

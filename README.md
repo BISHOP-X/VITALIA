@@ -372,8 +372,7 @@ BOLU PROJECT/
 │
 ├── 📁 supabase/              # Backend configuration
 │   ├── 📄 config.toml        # Supabase local dev settings
-│   ├── 📄 SETUP_GUIDE.md     # Step-by-step setup instructions
-│   ├── 📁 migrations/        # Database schema files
+│   ├──  migrations/        # Database schema files
 │   │   └── 00001_initial_schema.sql
 │   └── 📁 functions/         # AI Edge Functions
 │       ├── smart-rundown/    # Patient summary AI
@@ -430,8 +429,13 @@ The application works out-of-the-box in **demo mode** with no backend configurat
 ### Quick Setup (15 minutes)
 
 1. **Create a Supabase account** at [supabase.com](https://supabase.com)
-2. **Follow the detailed guide** in [supabase/SETUP_GUIDE.md](supabase/SETUP_GUIDE.md)
-3. **Copy your credentials** to `.env.local`
+2. **Create a new project** and run the migration in `supabase/migrations/00001_initial_schema.sql`
+3. **Copy your credentials** to `.env.local`:
+   ```
+   VITE_SUPABASE_URL=https://your-project.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
+   ```
+4. **(Optional)** For AI features, add your Groq API key as an Edge Function secret named `GROQ_API_KEY`
 
 ### What Gets Enabled
 
@@ -443,8 +447,7 @@ The application works out-of-the-box in **demo mode** with no backend configurat
 | BMI Records | UI only | ✅ Saved to database |
 | AI Analysis | Pre-written | ✅ Real LLM calls* |
 
-*Requires Groq API key (free)
-```
+*Requires free Groq API key — get one at [console.groq.com](https://console.groq.com)
 
 ---
 
