@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    /* Cinematic Health Palette - Ocean Teal + Warm Coral */
+    --background: 195 25% 8%;
+    --foreground: 180 10% 95%;
+
+    --card: 195 30% 12%;
+    --card-foreground: 180 10% 95%;
+
+    --popover: 195 30% 10%;
+    --popover-foreground: 180 10% 95%;
+
+    --primary: 175 55% 45%;
+    --primary-foreground: 195 25% 8%;
+
+    --secondary: 195 25% 18%;
+    --secondary-foreground: 180 10% 90%;
+
+    --muted: 195 20% 20%;
+    --muted-foreground: 195 15% 60%;
+
+    --accent: 15 80% 60%;
+    --accent-foreground: 195 25% 8%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 180 10% 95%;
+
+    --border: 195 25% 20%;
+    --input: 195 25% 18%;
+    --ring: 175 55% 45%;
+
+    --radius: 1rem;
+
+    /* Health Status Colors */
+    --status-low: 150 60% 50%;
+    --status-medium: 35 90% 55%;
+    --status-high: 0 72% 55%;
+
+    /* Glassmorphism */
+    --glass-bg: 195 30% 15% / 0.7;
+    --glass-border: 180 20% 40% / 0.2;
+    --glass-blur: 20px;
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(195 30% 8%) 0%, hsl(180 40% 15%) 50%, hsl(175 35% 12%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(195 30% 14%) 0%, hsl(195 25% 10%) 100%);
+    --gradient-glow: radial-gradient(circle at center, hsl(175 55% 45% / 0.3) 0%, transparent 70%);
+    --gradient-coral: linear-gradient(135deg, hsl(15 80% 60%) 0%, hsl(25 85% 55%) 100%);
+    --gradient-teal: linear-gradient(135deg, hsl(175 55% 45%) 0%, hsl(185 50% 40%) 100%);
+
+    /* Shadows */
+    --shadow-glow: 0 0 60px hsl(175 55% 45% / 0.2);
+    --shadow-card: 0 8px 32px hsl(195 30% 5% / 0.4);
+    --shadow-elevated: 0 20px 60px hsl(195 30% 5% / 0.5);
+
+    --sidebar-background: 195 30% 10%;
+    --sidebar-foreground: 180 10% 90%;
+    --sidebar-primary: 175 55% 45%;
+    --sidebar-primary-foreground: 195 25% 8%;
+    --sidebar-accent: 195 25% 18%;
+    --sidebar-accent-foreground: 180 10% 90%;
+    --sidebar-border: 195 25% 20%;
+    --sidebar-ring: 175 55% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Sora', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Sora', sans-serif;
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply backdrop-blur-xl border border-white/10 rounded-2xl;
+    background: hsl(var(--glass-bg));
+  }
+
+  .glass-card-hover {
+    @apply glass-card transition-all duration-500;
+  }
+
+  .glass-card-hover:hover {
+    @apply border-white/20 scale-[1.02];
+    box-shadow: var(--shadow-glow);
+  }
+
+  .text-gradient-primary {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-teal);
+  }
+
+  .text-gradient-accent {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-coral);
+  }
+
+  .btn-glass {
+    @apply px-6 py-3 rounded-xl backdrop-blur-md border border-white/20 
+           text-foreground font-medium transition-all duration-300
+           hover:bg-white/10 hover:border-white/30 active:scale-95;
+    background: hsl(var(--glass-bg));
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl text-primary-foreground font-semibold
+           transition-all duration-300 hover:brightness-110 active:scale-95;
+    background: var(--gradient-teal);
+    box-shadow: 0 4px 20px hsl(175 55% 45% / 0.3);
+  }
+
+  .btn-accent {
+    @apply px-6 py-3 rounded-xl text-accent-foreground font-semibold
+           transition-all duration-300 hover:brightness-110 active:scale-95;
+    background: var(--gradient-coral);
+    box-shadow: 0 4px 20px hsl(15 80% 60% / 0.3);
+  }
+
+  .health-ring {
+    @apply relative rounded-full;
+    background: conic-gradient(
+      hsl(var(--status-low)) var(--ring-progress, 75%),
+      hsl(var(--muted)) var(--ring-progress, 75%)
+    );
+  }
+
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      hsl(var(--muted)) 0%,
+      hsl(195 25% 25%) 50%,
+      hsl(var(--muted)) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  .pulse-glow {
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { 
+      box-shadow: 0 0 20px hsl(var(--status-low) / 0.4);
+    }
+    50% {
+      box-shadow: 0 0 40px hsl(var(--status-low) / 0.6);
+    }
+  }
+
+  .float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+}
+
+@layer utilities {
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+}
