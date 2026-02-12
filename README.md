@@ -82,7 +82,7 @@ Here's the big picture of what's happening under the hood when someone uses Vita
 
 **In plain English:**
 - The **React App** is what you see and interact with in the browser — all the buttons, pages, and visuals
-- **Supabase** is the cloud database — it stores user accounts, symptom logs, and BMI records securely in PostgreSQL (an industry-standard database). It also handles login/signup with email verification
+- **Supabase** is the cloud database — it stores user accounts, symptom logs, and BMI records securely in PostgreSQL (an industry-standard database). It handles login/signup with instant account creation
 - **Groq AI** is the artificial intelligence — when a doctor clicks "Generate Smart Rundown," the app sends patient data to Groq's AI model (called LLaMA 3.3, a 70-billion parameter language model) and receives back a 3-bullet summary of the patient's condition
 - If the cloud services are unavailable (no internet, no API key, etc.), the app **automatically switches to demo mode** — everything still works, just with pre-written sample data instead of live data
 
@@ -456,7 +456,7 @@ The following cloud infrastructure is **already deployed and working**:
 
 - **Supabase Project** — hosted in EU West (London), project name: `BOLU-PROJECT`
 - **PostgreSQL Database** — 4 tables with Row Level Security (patients can only see their own data)
-- **Authentication Server** — handles real email/password accounts with email verification
+- **Authentication Server** — handles real email/password accounts with instant account creation
 - **AI Edge Function** — `smart-rundown` function deployed and active, calling Groq AI
 - **Groq API Key** — already configured as a secret on the Edge Function
 
@@ -466,7 +466,7 @@ The following cloud infrastructure is **already deployed and working**:
 
 | Feature | Demo Mode (no `.env.local`) | Live Mode (with `.env.local`) |
 |---------|-----------|---------------|
-| Sign In/Sign Up | Clicks through instantly, no real account | ✅ Creates a real account in Supabase, sends verification email |
+| Sign In/Sign Up | Clicks through instantly, no real account | ✅ Creates a real account in Supabase instantly, ready to use immediately |
 | Password Reset | Shows success message only | ✅ Sends a real password reset email to your inbox |
 | Symptom Logging | Shows toast "Symptom Logged" but nothing saved | ✅ Writes a real row to the `symptom_logs` database table |
 | BMI Records | Shows toast but nothing saved | ✅ Saves height, weight, BMI value, and category to `bmi_records` table |
@@ -475,7 +475,7 @@ The following cloud infrastructure is **already deployed and working**:
 
 ### How to Tell Which Mode You're In
 
-- **Live Mode:** When you sign up, you'll receive an actual email. When a doctor generates a Smart Rundown, you'll see a green **"⚡ Groq AI"** badge next to it.
+- **Live Mode:** When you sign up, your account is created instantly in the database and you can log in immediately. When a doctor generates a Smart Rundown, you'll see a green **"⚡ Groq AI"** badge next to it.
 - **Demo Mode:** Sign in works instantly with any credentials. Smart Rundown shows an amber **"📋 Demo"** badge.
 
 ### Database Structure (For Reference)
@@ -601,7 +601,7 @@ Here's exactly what happens when someone uses Vitalia from start to finish:
 1. **Open the app** → See the landing page with Vitalia branding
 2. **Click "Get Started"** → Login modal appears
 3. **Choose "Patient" tab** → Sign up with email, password, name, age, gender
-4. **Account created** → A real account is created in Supabase, profile is auto-generated in the database
+4. **Account created instantly** → A real account is created in Supabase, profile is auto-generated in the database, ready to use immediately
 5. **Enter Patient Dashboard** → See health score ring, vital stats, action cards
 6. **Click "Log Symptoms"** → Fill in symptom type, severity (1-10 slider), duration, body location → Click submit → **Symptom is saved to the real database**
 7. **Click BMI stat card** → Enter height and weight (supports both cm/inches and kg/lbs) → See BMI result with color-coded gauge → Click "Save Record" → **BMI record saved to real database**
