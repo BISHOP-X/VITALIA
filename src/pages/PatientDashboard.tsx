@@ -54,7 +54,7 @@ const quickStats = [
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
-  const { profile, user, isDemo, signOut } = useAuth();
+  const { profile, user, signOut } = useAuth();
   const profileFirstName = profile?.full_name?.trim().split(/\s+/)[0];
   const userMetaFullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : undefined;
   const userMetaFirstName = userMetaFullName?.trim().split(/\s+/)[0];
@@ -67,11 +67,11 @@ export default function PatientDashboard() {
   } catch {
     lastKnownFirstName = undefined;
   }
-  const displayName = profileFirstName || userMetaFirstName || lastKnownFirstName || emailFirstName || (isDemo ? 'Sarah' : 'Guest');
+  const displayName = profileFirstName || userMetaFirstName || lastKnownFirstName || emailFirstName || 'Guest';
 
   const handleLogout = async () => {
     try {
-      if (!isDemo) await signOut();
+      await signOut();
     } catch {
       // ignore — still navigate home
     }

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { GlassModal } from "./GlassModal";
 import { User, Stethoscope, Mail, Lock, ArrowRight, UserCircle, Calendar, Users, CheckCircle, ArrowLeft, AlertCircle } from "lucide-react";
-import { signIn, signUp, resetPassword, isDemoMode } from "@/lib/supabase";
+import { signIn, signUp, resetPassword } from "@/lib/supabase";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -30,19 +30,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     setIsLoading(true);
 
     try {
-      // Demo mode — skip real auth, just navigate
-      if (isDemoMode()) {
-        if (mode === "forgotPassword") {
-          setResetEmailSent(true);
-          setIsLoading(false);
-          return;
-        }
-        setIsLoading(false);
-        onLogin(role);
-        return;
-      }
-
-      // Real Supabase auth
+      // Always authenticate through Supabase
       if (mode === "signin") {
         await signIn({ email, password });
         onLogin(role);

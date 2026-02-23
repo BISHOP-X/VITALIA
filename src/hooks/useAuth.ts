@@ -13,7 +13,6 @@ import {
   signOut, 
   resetPassword,
   getCurrentProfile,
-  isDemoMode,
   type SignUpData,
   type SignInData
 } from '../lib/supabase'
@@ -48,25 +47,13 @@ function persistLastKnownName(fullName: unknown) {
   }
 }
 
-// Demo user for when Supabase is not configured
-const DEMO_PROFILE: Profile = {
-  id: 'demo-user-id',
-  role: 'patient',
-  full_name: 'Sarah Johnson',
-  age: 32,
-  gender: 'female',
-  avatar_url: null,
-  created_at: new Date().toISOString(),
-  updated_at: new Date().toISOString(),
-}
-
 export function useAuth(): UseAuthReturn {
   const [state, setState] = useState<AuthState>({
     user: null,
     profile: null,
     session: null,
     loading: true,
-    isDemo: isDemoMode(),
+    isDemo: false,
   })
 
   // Fetch user profile from database
@@ -83,20 +70,8 @@ export function useAuth(): UseAuthReturn {
     }
   }, [])
 
-  // Initialize auth state
+  // Initialize auth state — always uses real Supabase
   useEffect(() => {
-    // If in demo mode, set demo state immediately
-    if (isDemoMode()) {
-      setState({
-        user: null,
-        profile: DEMO_PROFILE,
-        session: null,
-        loading: false,
-        isDemo: true,
-      })
-      return
-    }
-
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setState(prev => ({
@@ -149,12 +124,8 @@ export function useAuth(): UseAuthReturn {
     }
   }, [fetchProfile])
 
-  // Sign in handler
+  // Sign in handler — always goes through Supabase
   const handleSignIn = async (data: SignInData) => {
-    if (state.isDemo) {
-      return
-    }
-    
     setState(prev => ({ ...prev, loading: true }))
     try {
       await signIn(data)
@@ -163,12 +134,8 @@ export function useAuth(): UseAuthReturn {
     }
   }
 
-  // Sign up handler
+  // Sign up handler — always goes through Supabase
   const handleSignUp = async (data: SignUpData) => {
-    if (state.isDemo) {
-      return
-    }
-
     setState(prev => ({ ...prev, loading: true }))
     try {
       await signUp(data)
@@ -177,12 +144,8 @@ export function useAuth(): UseAuthReturn {
     }
   }
 
-  // Sign out handler
+  // Sign out handler — always clears real session
   const handleSignOut = async () => {
-    if (state.isDemo) {
-      return
-    }
-
     setState(prev => ({ ...prev, loading: true }))
     try {
       await signOut()
@@ -199,16 +162,11 @@ export function useAuth(): UseAuthReturn {
 
   // Password reset handler
   const handleResetPassword = async (email: string) => {
-    if (state.isDemo) {
-      return
-    }
-
     await resetPassword(email)
   }
 
   // Manual profile refresh
   const refreshProfile = async () => {
-    if (state.isDemo) return
     await fetchProfile()
   }
 

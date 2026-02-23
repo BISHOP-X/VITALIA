@@ -235,11 +235,11 @@ interface SelectedPatient {
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
-  const { signOut, isDemo } = useAuth();
+  const { signOut } = useAuth();
 
   const handleLogout = async () => {
     try {
-      if (!isDemo) await signOut();
+      await signOut();
     } catch {
       // ignore — still navigate home
     }
@@ -823,7 +823,7 @@ export default function DoctorDashboard() {
         <h2 className="text-2xl font-bold text-foreground mb-4">Notifications</h2>
         <div className="space-y-3 max-h-96 overflow-y-auto">
           {[
-            { title: "New Patient Registration", message: "Sarah Williams registered", time: "5 min ago", type: "info", unread: true },
+            { title: "New Patient Registration", message: "New patient registered", time: "5 min ago", type: "info", unread: true },
             { title: "Critical Alert", message: "Robert Miller - High BP reading", time: "1 hour ago", type: "alert", unread: true },
             { title: "Appointment Confirmed", message: "David Chen - Tomorrow 10:00 AM", time: "2 hours ago", type: "success", unread: false },
             { title: "Lab Results Ready", message: "Elena Rodriguez - Blood work complete", time: "5 hours ago", type: "info", unread: false },
