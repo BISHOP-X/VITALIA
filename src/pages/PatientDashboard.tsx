@@ -29,6 +29,7 @@ import { ChatButton } from "@/components/ChatButton";
 import { ChatPanel } from "@/components/ChatPanel";
 import { toast } from "@/hooks/use-toast";
 import { logSymptom, saveBMIRecord as saveBMIToSupabase, isDemoMode } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 import healthPattern from "@/assets/health-pattern.jpg";
 
 // Common symptom types for quick selection
@@ -53,6 +54,8 @@ const quickStats = [
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const displayName = profile?.full_name?.split(' ')[0] || 'Sarah';
   const [isSymptomModalOpen, setIsSymptomModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -406,7 +409,7 @@ export default function PatientDashboard() {
           <div className="flex items-center justify-between mb-6 sm:mb-8">
             <div>
               <p className="text-muted-foreground text-xs sm:text-sm">Good morning,</p>
-              <h1 className="text-xl sm:text-2xl font-bold text-foreground">Sarah</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-foreground">{displayName}</h1>
             </div>
             <div className="flex items-center gap-1.5 sm:gap-2">
               <button 
