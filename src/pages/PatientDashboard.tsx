@@ -54,8 +54,12 @@ const quickStats = [
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
-  const displayName = profile?.full_name?.split(' ')[0] || 'Sarah';
+  const { profile, user, isDemo } = useAuth();
+  const profileFirstName = profile?.full_name?.trim().split(/\s+/)[0];
+  const userMetaFullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : undefined;
+  const userMetaFirstName = userMetaFullName?.trim().split(/\s+/)[0];
+  const emailFirstName = typeof user?.email === 'string' ? user.email.split('@')[0] : undefined;
+  const displayName = profileFirstName || userMetaFirstName || emailFirstName || (isDemo ? 'Sarah' : 'there');
   const [isSymptomModalOpen, setIsSymptomModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -102,7 +106,7 @@ export default function PatientDashboard() {
     {
       id: 1,
       sender: "doctor" as const,
-      content: "Hi Sarah! How are you feeling today?",
+      content: "Hi! How are you feeling today?",
       timestamp: "10:30 AM",
       read: true
     },

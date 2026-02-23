@@ -132,7 +132,18 @@ export async function getCurrentProfile() {
     .eq('id', session.user.id)
     .single()
 
-  if (error) throw error
+  if (error) {
+    const message = (error as any)?.message as string | undefined
+    const code = (error as any)?.code as string | undefined
+
+    // PostgREST uses PGRST116 for "JSON object requested, multiple (or no) rows returned".
+    // In that case, treat it as "no profile yet" and let the app fall back to auth metadata.
+    if (code === 'PGRST116' || message?.includes('multiple (or no) rows returned')) {
+      return null
+    }
+
+    throw error
+  }
   return data
 }
 
