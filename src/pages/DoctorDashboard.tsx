@@ -239,12 +239,11 @@ export default function DoctorDashboard() {
 
   const handleLogout = async () => {
     try {
-      if (!isDemo) {
-        await signOut();
-      }
-    } finally {
-      navigate("/");
+      if (!isDemo) await signOut();
+    } catch {
+      // ignore — still navigate home
     }
+    window.location.href = "/";
   };
   const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
   const [searchQuery, setSearchQuery] = useState("");

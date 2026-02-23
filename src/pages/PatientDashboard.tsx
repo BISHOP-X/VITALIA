@@ -71,12 +71,11 @@ export default function PatientDashboard() {
 
   const handleLogout = async () => {
     try {
-      if (!isDemo) {
-        await signOut();
-      }
-    } finally {
-      navigate("/");
+      if (!isDemo) await signOut();
+    } catch {
+      // ignore — still navigate home
     }
+    window.location.href = "/";
   };
 
   const handleDownloadApp = () => {
