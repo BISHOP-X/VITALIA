@@ -2,7 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { GlassModal } from "./GlassModal";
 import { User, Stethoscope, Mail, Lock, ArrowRight, UserCircle, Calendar, Users, CheckCircle, ArrowLeft, AlertCircle } from "lucide-react";
-import { signIn, signUp, resetPassword, isDemoMode } from "@/lib/supabase";
+import { signIn, signUp, resetPassword, isDemoMode, getCurrentProfile } from "@/lib/supabase";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -45,8 +45,25 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
 
       // Real Supabase auth
       if (mode === "signin") {
-        await signIn({ email, password });
-        onLogin(role);
+        const authData = await signIn({ email, password });
+
+        // Prefer role from the real persisted profile (most realistic).
+        // Fall back to auth metadata (available immediately on the session).
+        let resolvedRole: "patient" | "doctor" = role;
+        try {
+          const profile = await getCurrentProfile();
+          if (profile?.role === "patient" || profile?.role === "doctor") {
+            resolvedRole = profile.role;
+          }
+        } catch {
+          // If profile lookup fails (RLS/no row), try auth metadata.
+          const metaRole = authData.user?.user_metadata?.role;
+          if (metaRole === "patient" || metaRole === "doctor") {
+            resolvedRole = metaRole;
+          }
+        }
+
+        onLogin(resolvedRole);
       }
 
       if (mode === "signup") {

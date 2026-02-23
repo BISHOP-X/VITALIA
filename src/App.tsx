@@ -2,9 +2,10 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { GlassModal } from "@/components/GlassModal";
+import { useAuth } from "@/hooks/useAuth";
 import Landing from "./pages/Landing";
 import PatientDashboard from "./pages/PatientDashboard";
 import DoctorDashboard from "./pages/DoctorDashboard";
@@ -31,6 +32,41 @@ function getIsStandalone(): boolean {
 function getIsIOS(): boolean {
   if (typeof window === "undefined") return false;
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+}
+
+function getRoleFromUserMetadata(user: any): "patient" | "doctor" | null {
+  const role = user?.user_metadata?.role;
+  return role === "patient" || role === "doctor" ? role : null;
+}
+
+function RequireRole({ role, children }: { role: "patient" | "doctor"; children: ReactNode }) {
+  const { loading, isDemo, session, profile, user } = useAuth();
+
+  if (isDemo) return <>{children}</>;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4">
+        <div className="glass-card w-full max-w-md p-6 text-center">
+          <p className="text-sm sm:text-base text-muted-foreground">Loading your session…</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session?.user) {
+    return <Navigate to="/" replace />;
+  }
+
+  const resolvedRole = (profile?.role === "patient" || profile?.role === "doctor")
+    ? profile.role
+    : getRoleFromUserMetadata(user);
+
+  if (resolvedRole && resolvedRole !== role) {
+    return <Navigate to={resolvedRole === "doctor" ? "/doctor" : "/patient"} replace />;
+  }
+
+  return <>{children}</>;
 }
 
 const App = () => {
@@ -206,8 +242,22 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/patient" element={<PatientDashboard />} />
-            <Route path="/doctor" element={<DoctorDashboard />} />
+            <Route
+              path="/patient"
+              element={(
+                <RequireRole role="patient">
+                  <PatientDashboard />
+                </RequireRole>
+              )}
+            />
+            <Route
+              path="/doctor"
+              element={(
+                <RequireRole role="doctor">
+                  <DoctorDashboard />
+                </RequireRole>
+              )}
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
