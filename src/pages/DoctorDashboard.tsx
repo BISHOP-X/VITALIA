@@ -18,6 +18,7 @@ import {
   MessageCircle
 } from "lucide-react";
 import { PatientCard } from "@/components/PatientCard";
+import { useAuth } from "@/hooks/useAuth";
 import { AIWorkspace } from "@/components/AIWorkspace";
 import { GlassModal } from "@/components/GlassModal";
 import { DoctorChatSidebar } from "@/components/DoctorChatSidebar";
@@ -234,6 +235,17 @@ interface SelectedPatient {
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
+  const { signOut, isDemo } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      if (!isDemo) {
+        await signOut();
+      }
+    } finally {
+      navigate("/");
+    }
+  };
   const [selectedPatient, setSelectedPatient] = useState<SelectedPatient | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -717,7 +729,7 @@ export default function DoctorDashboard() {
                 <Settings className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
               </button>
               <button 
-                onClick={() => navigate("/")}
+                onClick={handleLogout}
                 className="w-9 h-9 sm:w-10 sm:h-10 rounded-full glass-card flex items-center justify-center"
               >
                 <LogOut className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />

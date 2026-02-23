@@ -18,7 +18,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
   const [resetEmailSent, setResetEmailSent] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
-  const [signupSuccess, setSignupSuccess] = useState(false);
   
   // Sign up additional fields
   const [fullName, setFullName] = useState("");
@@ -50,7 +49,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
       }
 
       if (mode === "signup") {
-        await signUp({
+        const signUpResult = await signUp({
           email,
           password,
           fullName,
@@ -58,7 +57,17 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
           age: age ? parseInt(age) : undefined,
           gender: gender || undefined,
         });
-        setSignupSuccess(true);
+
+        // If email confirmation is disabled in Supabase, signUp returns a session.
+        // In that case, go straight into the app.
+        if (signUpResult.session?.user) {
+          onLogin(role);
+          return;
+        }
+
+        // Fallback: try sign-in (for setups that still allow immediate sign-in).
+        await signIn({ email, password });
+        onLogin(role);
       }
 
       if (mode === "forgotPassword") {
@@ -81,7 +90,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     setGender("");
     setResetEmailSent(false);
     setError("");
-    setSignupSuccess(false);
   };
 
   const goToForgotPassword = () => {
@@ -97,7 +105,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     setPassword("");
     setResetEmailSent(false);
     setError("");
-    setSignupSuccess(false);
   };
 
   return (
@@ -198,37 +205,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
               </motion.button>
             </motion.div>
           )}
-        </div>
-      ) : signupSuccess ? (
-        /* Signup Success Screen */
-        <div className="text-center">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="py-4 sm:py-6"
-          >
-            <div className="w-16 h-16 sm:w-20 sm:h-20 mx-auto mb-4 sm:mb-6 rounded-full bg-green-500/20 flex items-center justify-center">
-              <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-green-500" />
-            </div>
-            
-            <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-2">
-              Account Created!
-            </h2>
-            <p className="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8">
-              Check your email to confirm your account<br />
-              <span className="font-medium text-foreground">{email}</span>
-            </p>
-
-            <motion.button
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={backToSignIn}
-              className="btn-primary w-full flex items-center justify-center gap-2 text-sm sm:text-base py-2.5 sm:py-3"
-            >
-              Go to Sign In
-              <ArrowRight className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </motion.button>
-          </motion.div>
         </div>
       ) : (
         /* Sign In / Sign Up Mode */

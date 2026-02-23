@@ -186,6 +186,12 @@ export function useAuth(): UseAuthReturn {
     setState(prev => ({ ...prev, loading: true }))
     try {
       await signOut()
+      setState(prev => ({
+        ...prev,
+        user: null,
+        profile: null,
+        session: null,
+      }))
     } finally {
       setState(prev => ({ ...prev, loading: false }))
     }

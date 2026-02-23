@@ -94,7 +94,9 @@ export async function signIn({ email, password }: SignInData) {
  * Sign out the current user
  */
 export async function signOut() {
-  const { error } = await supabase.auth.signOut()
+  // Prefer a local sign-out so the UI/session always clears even if the
+  // network request to revoke tokens fails.
+  const { error } = await (supabase.auth as any).signOut({ scope: 'local' })
   if (error) throw error
 }
 
