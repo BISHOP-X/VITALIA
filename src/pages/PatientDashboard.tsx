@@ -54,12 +54,34 @@ const quickStats = [
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
-  const { profile, user, isDemo } = useAuth();
+  const { profile, user, isDemo, signOut } = useAuth();
   const profileFirstName = profile?.full_name?.trim().split(/\s+/)[0];
   const userMetaFullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : undefined;
   const userMetaFirstName = userMetaFullName?.trim().split(/\s+/)[0];
   const emailFirstName = typeof user?.email === 'string' ? user.email.split('@')[0] : undefined;
-  const displayName = profileFirstName || userMetaFirstName || emailFirstName || (isDemo ? 'Sarah' : 'there');
+  let lastKnownFirstName: string | undefined;
+  try {
+    const stored = localStorage.getItem('vitalia_last_known_full_name_v1') || '';
+    const first = stored.trim().split(/\s+/)[0];
+    lastKnownFirstName = first || undefined;
+  } catch {
+    lastKnownFirstName = undefined;
+  }
+  const displayName = profileFirstName || userMetaFirstName || lastKnownFirstName || emailFirstName || (isDemo ? 'Sarah' : 'Guest');
+
+  const handleLogout = async () => {
+    try {
+      if (!isDemo) {
+        await signOut();
+      }
+    } finally {
+      navigate("/");
+    }
+  };
+
+  const handleDownloadApp = () => {
+    window.dispatchEvent(new CustomEvent('vitalia:open-install-modal'));
+  };
   const [isSymptomModalOpen, setIsSymptomModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
@@ -571,7 +593,7 @@ export default function PatientDashboard() {
             <span className="text-[10px] sm:text-xs text-muted-foreground">Schedule</span>
           </button>
           <button 
-            onClick={() => navigate("/")}
+            onClick={handleLogout}
             className="flex flex-col items-center gap-0.5 sm:gap-1 min-w-[60px] py-1 hover:opacity-80 transition-opacity"
           >
             <LogOut className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" />
@@ -1003,17 +1025,38 @@ export default function PatientDashboard() {
       <GlassModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}>
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Settings</h2>
         <div className="space-y-2 sm:space-y-3">
-          {[
-            { label: "Notifications", sublabel: "Manage alerts" },
-            { label: "Privacy", sublabel: "Data & permissions" },
-            { label: "Profile", sublabel: "Personal information" },
-            { label: "Integrations", sublabel: "Connected devices" },
-          ].map((item, i) => (
-            <button key={i} className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
-              <p className="text-sm sm:text-base font-semibold text-foreground">{item.label}</p>
-              <p className="text-xs sm:text-sm text-muted-foreground">{item.sublabel}</p>
-            </button>
-          ))}
+          <button className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
+            <p className="text-sm sm:text-base font-semibold text-foreground">Notifications</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Manage alerts</p>
+          </button>
+          <button className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
+            <p className="text-sm sm:text-base font-semibold text-foreground">Privacy</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Data & permissions</p>
+          </button>
+          <button className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
+            <p className="text-sm sm:text-base font-semibold text-foreground">Profile</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Personal information</p>
+          </button>
+          <button className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
+            <p className="text-sm sm:text-base font-semibold text-foreground">Integrations</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Connected devices</p>
+          </button>
+
+          <button
+            onClick={handleDownloadApp}
+            className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors"
+          >
+            <p className="text-sm sm:text-base font-semibold text-foreground">Download App</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Install Vitalia as a PWA</p>
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors"
+          >
+            <p className="text-sm sm:text-base font-semibold text-foreground">Log out</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">Sign out and return to home</p>
+          </button>
         </div>
       </GlassModal>
 

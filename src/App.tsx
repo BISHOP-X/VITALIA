@@ -34,13 +34,8 @@ function getIsIOS(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
 }
 
-function getRoleFromUserMetadata(user: any): "patient" | "doctor" | null {
-  const role = user?.user_metadata?.role;
-  return role === "patient" || role === "doctor" ? role : null;
-}
-
-function RequireRole({ role, children }: { role: "patient" | "doctor"; children: ReactNode }) {
-  const { loading, isDemo, session, profile, user } = useAuth();
+function RequireAuth({ children }: { children: ReactNode }) {
+  const { loading, isDemo, session } = useAuth();
 
   if (isDemo) return <>{children}</>;
 
@@ -56,14 +51,6 @@ function RequireRole({ role, children }: { role: "patient" | "doctor"; children:
 
   if (!session?.user) {
     return <Navigate to="/" replace />;
-  }
-
-  const resolvedRole = (profile?.role === "patient" || profile?.role === "doctor")
-    ? profile.role
-    : getRoleFromUserMetadata(user);
-
-  if (resolvedRole && resolvedRole !== role) {
-    return <Navigate to={resolvedRole === "doctor" ? "/doctor" : "/patient"} replace />;
   }
 
   return <>{children}</>;
@@ -85,6 +72,12 @@ const App = () => {
       setDeferredPrompt(event as BeforeInstallPromptEvent);
     };
 
+    const onOpenInstallModal = () => {
+      setInstallStep("platform");
+      setAndroidPromptUnavailable(false);
+      setInstallModalOpen(true);
+    };
+
     const onAppInstalled = () => {
       try {
         localStorage.setItem(PWA_INSTALL_DISMISSED_KEY, "installed");
@@ -96,9 +89,11 @@ const App = () => {
 
     window.addEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     window.addEventListener("appinstalled", onAppInstalled);
+    window.addEventListener("vitalia:open-install-modal", onOpenInstallModal as EventListener);
     return () => {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
       window.removeEventListener("appinstalled", onAppInstalled);
+      window.removeEventListener("vitalia:open-install-modal", onOpenInstallModal as EventListener);
     };
   }, []);
 
@@ -245,17 +240,17 @@ const App = () => {
             <Route
               path="/patient"
               element={(
-                <RequireRole role="patient">
+                <RequireAuth>
                   <PatientDashboard />
-                </RequireRole>
+                </RequireAuth>
               )}
             />
             <Route
               path="/doctor"
               element={(
-                <RequireRole role="doctor">
+                <RequireAuth>
                   <DoctorDashboard />
-                </RequireRole>
+                </RequireAuth>
               )}
             />
             <Route path="*" element={<NotFound />} />

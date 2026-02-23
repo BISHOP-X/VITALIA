@@ -35,6 +35,19 @@ interface UseAuthReturn extends AuthState {
   refreshProfile: () => Promise<void>
 }
 
+const LAST_KNOWN_NAME_KEY = 'vitalia_last_known_full_name_v1'
+
+function persistLastKnownName(fullName: unknown) {
+  if (typeof fullName !== 'string') return
+  const trimmed = fullName.trim()
+  if (!trimmed) return
+  try {
+    localStorage.setItem(LAST_KNOWN_NAME_KEY, trimmed)
+  } catch {
+    // ignore
+  }
+}
+
 // Demo user for when Supabase is not configured
 const DEMO_PROFILE: Profile = {
   id: 'demo-user-id',
@@ -61,6 +74,10 @@ export function useAuth(): UseAuthReturn {
     try {
       const profile = await getCurrentProfile()
       setState(prev => ({ ...prev, profile }))
+
+      if (profile?.full_name) {
+        persistLastKnownName(profile.full_name)
+      }
     } catch (error) {
       console.error('Error fetching profile:', error)
     }
@@ -88,6 +105,10 @@ export function useAuth(): UseAuthReturn {
         user: session?.user ?? null,
         loading: false,
       }))
+
+      if (session?.user?.user_metadata?.full_name) {
+        persistLastKnownName(session.user.user_metadata.full_name)
+      }
       
       if (session?.user) {
         fetchProfile()
@@ -104,6 +125,10 @@ export function useAuth(): UseAuthReturn {
           user: session?.user ?? null,
           loading: false,
         }))
+
+        if (session?.user?.user_metadata?.full_name) {
+          persistLastKnownName(session.user.user_metadata.full_name)
+        }
 
         if (event === 'SIGNED_IN' && session?.user) {
           await fetchProfile()

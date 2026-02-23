@@ -18,7 +18,7 @@ export function ChatButton({ onClick, unreadCount = 0, isOpen }: ChatButtonProps
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           onClick={onClick}
-          className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 z-50 
+          className="fixed bottom-24 right-6 sm:bottom-28 sm:right-8 z-50 
                    w-14 h-14 sm:w-16 sm:h-16 rounded-full 
                    bg-gradient-to-br from-teal-500 to-cyan-500 
                    shadow-lg hover:shadow-xl 
