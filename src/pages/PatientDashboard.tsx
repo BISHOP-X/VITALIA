@@ -261,15 +261,21 @@ export default function PatientDashboard() {
     // Save to Supabase if connected, otherwise silent fallback
     if (!isDemoMode()) {
       try {
-        await logSymptom({
+        const savePromise = logSymptom({
           symptom_type: allSymptoms.join(', '),
           severity: severityLevel,
           duration,
           body_location: bodyLocation || undefined,
           notes: notes || undefined,
         });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Save timed out')), 15000)
+        );
+        await Promise.race([savePromise, timeoutPromise]);
       } catch (err) {
-        console.error('Symptom save failed, continuing in demo mode:', err);
+        console.error('Symptom save failed:', err);
+        toast({ title: "Save Failed", description: "Could not save symptom. Please try again.", variant: "destructive" });
+        return;
       }
     }
 
@@ -445,14 +451,20 @@ export default function PatientDashboard() {
           "Obese": "obese",
         };
 
-        await saveBMIToSupabase({
+        const savePromise = saveBMIToSupabase({
           height_cm: parseFloat(heightCm.toFixed(2)),
           weight_kg: parseFloat(weightKg.toFixed(2)),
           bmi_value: bmiValue,
           category: categoryMap[bmiCategory.label] || "normal",
         });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Save timed out')), 15000)
+        );
+        await Promise.race([savePromise, timeoutPromise]);
       } catch (err) {
-        console.error('BMI save failed, continuing in demo mode:', err);
+        console.error('BMI save failed:', err);
+        toast({ title: "Save Failed", description: "Could not save BMI record. Please try again.", variant: "destructive" });
+        return;
       }
     }
 
@@ -477,7 +489,8 @@ export default function PatientDashboard() {
     }
     setIsSavingVitals(true);
     try {
-      await saveVitals({
+      // Wrap in a timeout so it never hangs forever
+      const savePromise = saveVitals({
         heart_rate: heartRate ? parseInt(heartRate) : undefined,
         systolic_bp: systolicBp ? parseInt(systolicBp) : undefined,
         diastolic_bp: diastolicBp ? parseInt(diastolicBp) : undefined,
@@ -486,13 +499,18 @@ export default function PatientDashboard() {
         temperature: temperature ? parseFloat(temperature) : undefined,
         notes: vNotes || undefined,
       });
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Save timed out — check your network connection')), 15000)
+      );
+      await Promise.race([savePromise, timeoutPromise]);
       toast({ title: "Vitals Recorded", description: "Your vitals have been saved successfully." });
       setVitalsForm({ heartRate: '', systolicBp: '', diastolicBp: '', sleepHours: '', oxygenSat: '', temperature: '', notes: '' });
       setIsVitalsModalOpen(false);
       refresh();
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Vitals save failed:', err);
-      toast({ title: "Save Failed", description: "Could not save vitals. Please try again.", variant: "destructive" });
+      const message = err instanceof Error ? err.message : 'Could not save vitals. Please try again.';
+      toast({ title: "Save Failed", description: message, variant: "destructive" });
     } finally {
       setIsSavingVitals(false);
     }

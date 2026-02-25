@@ -5,12 +5,14 @@
 // and database operations throughout the application.
 
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from './database.types'
+import type { Database, SymptomLogInsert, BMIRecordInsert, HealthVitalsInsert } from './database.types'
+
+const authNoOpLock = async <T>(_: string, __: number, fn: () => Promise<T>) => fn()
 
 // Environment variables for Supabase connection
 // These will be set in .env.local file
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
-const supabaseKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || ''
 
 // Validate configuration
 if (!supabaseUrl || !supabaseKey) {
@@ -18,8 +20,10 @@ if (!supabaseUrl || !supabaseKey) {
     '⚠️ Supabase credentials not configured. Running in demo mode.\n' +
     'To enable real backend features, create a .env.local file with:\n' +
     'VITE_SUPABASE_URL=your-project-url\n' +
-    'VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key'
+    'VITE_SUPABASE_ANON_KEY=your-anon-key'
   )
+} else {
+  console.info('✅ Supabase connected:', supabaseUrl)
 }
 
 // Create the Supabase client
@@ -34,6 +38,8 @@ export const supabase = createClient<Database>(
       autoRefreshToken: true,
       // Detect session from URL (for OAuth/magic links)
       detectSessionInUrl: true,
+      // Avoid navigator.locks deadlock seen in some Chromium sessions
+      lock: authNoOpLock,
     },
   }
 )
@@ -119,9 +125,32 @@ export async function resetPassword(email: string) {
  * Get current session
  */
 export async function getSession() {
-  const { data: { session }, error } = await supabase.auth.getSession()
-  if (error) throw error
-  return session
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    setTimeout(() => reject(new Error('Auth session request timed out')), 8000)
+  })
+
+  try {
+    const result = await Promise.race([
+      supabase.auth.getSession(),
+      timeoutPromise,
+    ])
+    const { data: { session }, error } = result
+    if (error) throw error
+    return session
+  } catch (error) {
+    const userResult = await supabase.auth.getUser()
+    if (userResult.error) throw error
+    if (!userResult.data.user) return null
+
+    return {
+      access_token: '',
+      refresh_token: '',
+      expires_in: 0,
+      expires_at: 0,
+      token_type: 'bearer',
+      user: userResult.data.user,
+    }
+  }
 }
 
 /**
@@ -138,8 +167,8 @@ export async function getCurrentProfile() {
     .single()
 
   if (error) {
-    const message = (error as any)?.message as string | undefined
-    const code = (error as any)?.code as string | undefined
+    const message = error.message
+    const code = error.code
 
     // PostgREST uses PGRST116 for "JSON object requested, multiple (or no) rows returned".
     // In that case, treat it as "no profile yet" and let the app fall back to auth metadata.
@@ -166,20 +195,30 @@ export async function logSymptom(symptomData: {
   body_location?: string
   notes?: string
 }) {
+  console.log('[logSymptom] Starting...')
   const session = await getSession()
-  if (!session?.user) throw new Error('Not authenticated')
+  if (!session?.user) {
+    console.error('[logSymptom] No authenticated session')
+    throw new Error('Not authenticated')
+  }
 
-  const { data, error } = await supabase
+  const cleanData: SymptomLogInsert = { patient_id: session.user.id }
+  for (const [key, value] of Object.entries(symptomData)) {
+    if (value !== undefined) {
+      ;(cleanData as Record<string, unknown>)[key] = value
+    }
+  }
+  console.log('[logSymptom] Inserting:', cleanData)
+
+  const { error } = await supabase
     .from('symptom_logs')
-    .insert({
-      patient_id: session.user.id,
-      ...symptomData,
-    })
-    .select()
-    .single()
+    .insert(cleanData)
 
-  if (error) throw error
-  return data
+  if (error) {
+    console.error('[logSymptom] Supabase error:', error.message, error.code, error.details)
+    throw error
+  }
+  console.log('[logSymptom] Success')
 }
 
 /**
@@ -191,20 +230,30 @@ export async function saveBMIRecord(bmiData: {
   bmi_value: number
   category: 'underweight' | 'normal' | 'overweight' | 'obese'
 }) {
+  console.log('[saveBMIRecord] Starting...')
   const session = await getSession()
-  if (!session?.user) throw new Error('Not authenticated')
+  if (!session?.user) {
+    console.error('[saveBMIRecord] No authenticated session')
+    throw new Error('Not authenticated')
+  }
 
-  const { data, error } = await supabase
+  const cleanData: BMIRecordInsert = { patient_id: session.user.id }
+  for (const [key, value] of Object.entries(bmiData)) {
+    if (value !== undefined) {
+      ;(cleanData as Record<string, unknown>)[key] = value
+    }
+  }
+  console.log('[saveBMIRecord] Inserting:', cleanData)
+
+  const { error } = await supabase
     .from('bmi_records')
-    .insert({
-      patient_id: session.user.id,
-      ...bmiData,
-    })
-    .select()
-    .single()
+    .insert(cleanData)
 
-  if (error) throw error
-  return data
+  if (error) {
+    console.error('[saveBMIRecord] Supabase error:', error.message, error.code, error.details)
+    throw error
+  }
+  console.log('[saveBMIRecord] Success')
 }
 
 /**
@@ -259,20 +308,32 @@ export async function saveVitals(vitalsData: {
   temperature?: number | null
   notes?: string | null
 }) {
+  console.log('[saveVitals] Starting...')
   const session = await getSession()
-  if (!session?.user) throw new Error('Not authenticated')
+  if (!session?.user) {
+    console.error('[saveVitals] No authenticated session')
+    throw new Error('Not authenticated')
+  }
+  console.log('[saveVitals] Authenticated as:', session.user.id)
 
-  const { data, error } = await supabase
+  // Clean out undefined keys so only real values are sent
+  const cleanData: HealthVitalsInsert = { patient_id: session.user.id }
+  for (const [key, value] of Object.entries(vitalsData)) {
+    if (value !== undefined) {
+      ;(cleanData as Record<string, unknown>)[key] = value
+    }
+  }
+  console.log('[saveVitals] Inserting:', cleanData)
+
+  const { error } = await supabase
     .from('health_vitals')
-    .insert({
-      patient_id: session.user.id,
-      ...vitalsData,
-    })
-    .select()
-    .single()
+    .insert(cleanData)
 
-  if (error) throw error
-  return data
+  if (error) {
+    console.error('[saveVitals] Supabase error:', error.message, error.code, error.details)
+    throw error
+  }
+  console.log('[saveVitals] Success')
 }
 
 /**
