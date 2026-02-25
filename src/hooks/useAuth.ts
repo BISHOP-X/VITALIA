@@ -57,9 +57,10 @@ export function useAuth(): UseAuthReturn {
   })
 
   // Fetch user profile from database
-  const fetchProfile = useCallback(async () => {
+  const fetchProfile = useCallback(async (userId: string) => {
+    if (!userId) return
     try {
-      const profile = await getCurrentProfile()
+      const profile = await getCurrentProfile(userId)
       setState(prev => ({ ...prev, profile }))
 
       if (profile?.full_name) {
@@ -72,22 +73,24 @@ export function useAuth(): UseAuthReturn {
 
   // Initialize auth state — always uses real Supabase
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Use getUser() instead of getSession() — avoids navigator.locks deadlock.
+    // getUser() makes a direct API call with the stored JWT.
+    supabase.auth.getUser().then(({ data: { user } }) => {
       setState(prev => ({
         ...prev,
-        session,
-        user: session?.user ?? null,
+        user: user ?? null,
         loading: false,
       }))
 
-      if (session?.user?.user_metadata?.full_name) {
-        persistLastKnownName(session.user.user_metadata.full_name)
+      if (user?.user_metadata?.full_name) {
+        persistLastKnownName(user.user_metadata.full_name)
       }
-      
-      if (session?.user) {
-        fetchProfile()
+
+      if (user) {
+        fetchProfile(user.id)
       }
+    }).catch(() => {
+      setState(prev => ({ ...prev, loading: false }))
     })
 
     // Listen for auth changes
@@ -106,7 +109,7 @@ export function useAuth(): UseAuthReturn {
         }
 
         if (event === 'SIGNED_IN' && session?.user) {
-          await fetchProfile()
+          await fetchProfile(session.user.id)
         }
 
         if (event === 'SIGNED_OUT') {
@@ -167,7 +170,9 @@ export function useAuth(): UseAuthReturn {
 
   // Manual profile refresh
   const refreshProfile = async () => {
-    await fetchProfile()
+    if (state.user?.id) {
+      await fetchProfile(state.user.id)
+    }
   }
 
   return {

@@ -79,7 +79,7 @@ const bodyLocations = [
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const { profile, user, signOut } = useAuth();
-  const { symptoms, bmiRecords, latestVitals, vitalsHistory, loading: dataLoading, refresh } = usePatientData();
+  const { symptoms, bmiRecords, latestVitals, vitalsHistory, loading: dataLoading, refresh, patchLatestVitals } = usePatientData(user?.id ?? '');
 
   // Dynamic quick stats from real Supabase data
   const quickStats = [
@@ -489,23 +489,41 @@ export default function PatientDashboard() {
     }
     setIsSavingVitals(true);
     try {
-      // Wrap in a timeout so it never hangs forever
-      const savePromise = saveVitals({
-        heart_rate: heartRate ? parseInt(heartRate) : undefined,
-        systolic_bp: systolicBp ? parseInt(systolicBp) : undefined,
-        diastolic_bp: diastolicBp ? parseInt(diastolicBp) : undefined,
-        sleep_hours: sleepHours ? parseFloat(sleepHours) : undefined,
-        oxygen_saturation: oxygenSat ? parseInt(oxygenSat) : undefined,
-        temperature: temperature ? parseFloat(temperature) : undefined,
-        notes: vNotes || undefined,
-      }, user?.id ?? '');
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Save timed out — check your network connection')), 15000)
-      );
-      await Promise.race([savePromise, timeoutPromise]);
+      // Merge user input with PREVIOUS vitals so blank fields carry forward their last known value.
+      // e.g. if the user only updates heart rate, sleep/O2/etc. from last record are preserved.
+      const merged = {
+        heart_rate:        heartRate  ? parseInt(heartRate)       : (latestVitals?.heart_rate        ?? undefined),
+        systolic_bp:       systolicBp ? parseInt(systolicBp)      : (latestVitals?.systolic_bp       ?? undefined),
+        diastolic_bp:      diastolicBp ? parseInt(diastolicBp)    : (latestVitals?.diastolic_bp      ?? undefined),
+        sleep_hours:       sleepHours ? parseFloat(sleepHours)    : (latestVitals?.sleep_hours       ?? undefined),
+        oxygen_saturation: oxygenSat  ? parseInt(oxygenSat)       : (latestVitals?.oxygen_saturation ?? undefined),
+        temperature:       temperature ? parseFloat(temperature)  : (latestVitals?.temperature       ?? undefined),
+        notes:             vNotes || (latestVitals?.notes ?? undefined),
+      };
+
+      await Promise.race([
+        saveVitals(merged, user?.id ?? ''),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Save timed out — check your network connection')), 15000)
+        ),
+      ]);
+
+      // Immediately reflect the new values in the UI — no waiting for DB round-trip
+      patchLatestVitals({
+        heart_rate:        merged.heart_rate        ?? null,
+        systolic_bp:       merged.systolic_bp       ?? null,
+        diastolic_bp:      merged.diastolic_bp      ?? null,
+        sleep_hours:       merged.sleep_hours       ?? null,
+        oxygen_saturation: merged.oxygen_saturation ?? null,
+        temperature:       merged.temperature       ?? null,
+        notes:             merged.notes             ?? null,
+        recorded_at:       new Date().toISOString(),
+      });
+
       toast({ title: "Vitals Recorded", description: "Your vitals have been saved successfully." });
       setVitalsForm({ heartRate: '', systolicBp: '', diastolicBp: '', sleepHours: '', oxygenSat: '', temperature: '', notes: '' });
       setIsVitalsModalOpen(false);
+      // Refresh in background to sync with DB
       refresh();
     } catch (err: unknown) {
       console.error('Vitals save failed:', err);

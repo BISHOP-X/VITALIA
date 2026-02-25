@@ -5,7 +5,7 @@
 // and database operations throughout the application.
 
 import { createClient } from '@supabase/supabase-js'
-import type { Database, SymptomLogInsert, BMIRecordInsert, HealthVitalsInsert } from './database.types'
+import type { Database, Profile, SymptomLogInsert, BMIRecordInsert, HealthVitalsInsert } from './database.types'
 
 const authNoOpLock = async <T>(_: string, __: number, fn: () => Promise<T>) => fn()
 
@@ -155,15 +155,16 @@ export async function getSession() {
 
 /**
  * Get current user profile from profiles table
+ * userId passed directly — no getSession() needed.
  */
-export async function getCurrentProfile() {
-  const session = await getSession()
-  if (!session?.user) return null
+export async function getCurrentProfile(userId: string): Promise<Profile | null> {
+  if (!userId) return null
 
-  const { data, error } = await supabase
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
     .from('profiles')
     .select('*')
-    .eq('id', session.user.id)
+    .eq('id', userId)
     .single()
 
   if (error) {
@@ -242,38 +243,38 @@ export async function saveBMIRecord(bmiData: {
 
 /**
  * Get patient's symptom history
+ * userId passed directly — no getSession() needed.
  */
-export async function getSymptomHistory(limit = 10) {
-  const session = await getSession()
-  if (!session?.user) throw new Error('Not authenticated')
+export async function getSymptomHistory(limit = 10, userId = '') {
+  if (!userId) return []
 
   const { data, error } = await supabase
     .from('symptom_logs')
     .select('*')
-    .eq('patient_id', session.user.id)
+    .eq('patient_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
   if (error) throw error
-  return data
+  return data ?? []
 }
 
 /**
  * Get patient's BMI history
+ * userId passed directly — no getSession() needed.
  */
-export async function getBMIHistory(limit = 10) {
-  const session = await getSession()
-  if (!session?.user) throw new Error('Not authenticated')
+export async function getBMIHistory(limit = 10, userId = '') {
+  if (!userId) return []
 
   const { data, error } = await supabase
     .from('bmi_records')
     .select('*')
-    .eq('patient_id', session.user.id)
+    .eq('patient_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit)
 
   if (error) throw error
-  return data
+  return data ?? []
 }
 
 // ============================================
@@ -319,15 +320,15 @@ export async function saveVitals(vitalsData: {
 
 /**
  * Get the patient's most recent vitals reading
+ * userId passed directly — no getSession() needed.
  */
-export async function getLatestVitals() {
-  const session = await getSession()
-  if (!session?.user) throw new Error('Not authenticated')
+export async function getLatestVitals(userId = '') {
+  if (!userId) return null
 
   const { data, error } = await supabase
     .from('health_vitals')
     .select('*')
-    .eq('patient_id', session.user.id)
+    .eq('patient_id', userId)
     .order('recorded_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -338,15 +339,15 @@ export async function getLatestVitals() {
 
 /**
  * Get patient's vitals history
+ * userId passed directly — no getSession() needed.
  */
-export async function getVitalsHistory(limit = 20) {
-  const session = await getSession()
-  if (!session?.user) throw new Error('Not authenticated')
+export async function getVitalsHistory(limit = 20, userId = '') {
+  if (!userId) return []
 
   const { data, error } = await supabase
     .from('health_vitals')
     .select('*')
-    .eq('patient_id', session.user.id)
+    .eq('patient_id', userId)
     .order('recorded_at', { ascending: false })
     .limit(limit)
 

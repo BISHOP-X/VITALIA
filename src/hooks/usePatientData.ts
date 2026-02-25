@@ -22,7 +22,7 @@ interface PatientData {
   loading: boolean
 }
 
-export function usePatientData() {
+export function usePatientData(userId = '') {
   const [data, setData] = useState<PatientData>({
     symptoms: [],
     bmiRecords: [],
@@ -32,13 +32,18 @@ export function usePatientData() {
   })
 
   const fetchAll = useCallback(async () => {
+    // Don't fetch until we have a userId (auth may still be loading)
+    if (!userId) {
+      setData(prev => ({ ...prev, loading: false }))
+      return
+    }
     setData(prev => ({ ...prev, loading: true }))
     try {
       const [symptoms, bmiRecords, latestVitals, vitalsHistory] = await Promise.all([
-        getSymptomHistory(20).catch(() => []),
-        getBMIHistory(10).catch(() => []),
-        getLatestVitals().catch(() => null),
-        getVitalsHistory(20).catch(() => []),
+        getSymptomHistory(20, userId).catch(() => []),
+        getBMIHistory(10, userId).catch(() => []),
+        getLatestVitals(userId).catch(() => null),
+        getVitalsHistory(20, userId).catch(() => []),
       ])
 
       setData({
@@ -51,11 +56,23 @@ export function usePatientData() {
     } catch {
       setData(prev => ({ ...prev, loading: false }))
     }
-  }, [])
+  }, [userId])
 
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
 
-  return { ...data, refresh: fetchAll }
+  return {
+    ...data,
+    refresh: fetchAll,
+    // Optimistic patch — instantly update latestVitals in local state
+    // so the dashboard reflects new values before the DB round-trip completes.
+    patchLatestVitals: (patch: Partial<HealthVitals>) =>
+      setData(prev => ({
+        ...prev,
+        latestVitals: prev.latestVitals
+          ? { ...prev.latestVitals, ...patch }
+          : ({ ...patch } as HealthVitals),
+      })),
+  }
 }
