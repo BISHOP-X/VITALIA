@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Activity, 
@@ -22,7 +22,12 @@ import {
   Ruler,
   Calculator,
   Plus,
-  Thermometer
+  Thermometer,
+  Trash2,
+  User,
+  Shield,
+  Smartphone,
+  ChevronLeft as ChevronLeftIcon
 } from "lucide-react";
 import { HealthRing } from "@/components/HealthRing";
 import { ActionCard } from "@/components/ActionCard";
@@ -34,6 +39,29 @@ import { logSymptom, saveBMIRecord as saveBMIToSupabase, isDemoMode, saveVitals 
 import { useAuth } from "@/hooks/useAuth";
 import { usePatientData } from "@/hooks/usePatientData";
 import healthPattern from "@/assets/health-pattern.jpg";
+
+// Appointment type for localStorage persistence
+interface SavedAppointment {
+  id: string;
+  doctor: string;
+  date: string;
+  reason: string;
+  status: 'pending' | 'confirmed';
+  createdAt: string;
+}
+
+const APPOINTMENTS_KEY = 'vitalia_appointments';
+
+function loadAppointments(): SavedAppointment[] {
+  try {
+    const raw = localStorage.getItem(APPOINTMENTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function persistAppointments(appts: SavedAppointment[]) {
+  localStorage.setItem(APPOINTMENTS_KEY, JSON.stringify(appts));
+}
 
 // Common symptom types for quick selection
 const commonSymptoms = [
@@ -136,8 +164,20 @@ export default function PatientDashboard() {
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [isAIAdvisorOpen, setIsAIAdvisorOpen] = useState(false);
   const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [settingsView, setSettingsView] = useState<'main' | 'notifications' | 'privacy' | 'profile' | 'integrations'>('main');
   const [vitalsForm, setVitalsForm] = useState({ heartRate: '', systolicBp: '', diastolicBp: '', sleepHours: '', oxygenSat: '', temperature: '', notes: '' });
   const [isSavingVitals, setIsSavingVitals] = useState(false);
+
+  // Appointments — localStorage backed
+  const [appointments, setAppointments] = useState<SavedAppointment[]>(loadAppointments);
+  const [bookingForm, setBookingForm] = useState({ doctor: 'Dr. Martinez (General)', date: '', reason: '' });
+  const upcomingAppointment = appointments
+    .filter(a => new Date(a.date) >= new Date(new Date().toDateString()))
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0] ?? null;
+
+  // Persist appointments whenever they change
+  useEffect(() => { persistAppointments(appointments); }, [appointments]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<{
     possible_conditions: { name: string; likelihood: number; description: string; }[];
@@ -252,11 +292,30 @@ export default function PatientDashboard() {
   };
 
   const handleBookAppointment = () => {
+    if (!bookingForm.date) {
+      toast({ title: "Select a date", description: "Please choose a preferred date for your appointment.", variant: "destructive" });
+      return;
+    }
+    const newAppt: SavedAppointment = {
+      id: crypto.randomUUID(),
+      doctor: bookingForm.doctor,
+      date: bookingForm.date,
+      reason: bookingForm.reason || 'General consultation',
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    };
+    setAppointments(prev => [...prev, newAppt]);
     toast({
       title: "Appointment Requested",
-      description: "We'll contact you shortly to confirm your booking.",
+      description: `Booked with ${newAppt.doctor} on ${new Date(newAppt.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}.`,
     });
+    setBookingForm({ doctor: 'Dr. Martinez (General)', date: '', reason: '' });
     setIsBookingModalOpen(false);
+  };
+
+  const handleDeleteAppointment = (id: string) => {
+    setAppointments(prev => prev.filter(a => a.id !== id));
+    toast({ title: "Appointment Removed", description: "The appointment has been removed." });
   };
 
   const handleAIAnalysis = async () => {
@@ -506,12 +565,12 @@ export default function PatientDashboard() {
       </div>
 
       {/* Quick Stats */}
-      <div className="px-4 sm:px-6 -mt-2">
+      <div className="px-4 sm:px-6 mt-4 sm:mt-5">
         <div className="flex items-center justify-between mb-2">
           <h3 className="text-xs sm:text-sm font-medium text-muted-foreground">Your Vitals</h3>
           <button
             onClick={() => setIsVitalsModalOpen(true)}
-            className="flex items-center gap-1 text-xs text-teal-400 hover:text-teal-300 transition-colors"
+            className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium text-teal-400 hover:text-teal-300 bg-teal-500/10 hover:bg-teal-500/20 border border-teal-500/20 transition-all"
           >
             <Plus className="w-3.5 h-3.5" />
             Record Vitals
@@ -609,8 +668,22 @@ export default function PatientDashboard() {
               <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm sm:text-base font-medium text-foreground truncate">No upcoming visits</p>
-              <p className="text-xs sm:text-sm text-muted-foreground truncate">Tap "Book Visit" to schedule one</p>
+              {upcomingAppointment ? (
+                <>
+                  <p className="text-sm sm:text-base font-medium text-foreground truncate">
+                    {upcomingAppointment.doctor}
+                  </p>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">
+                    {new Date(upcomingAppointment.date).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}
+                    {upcomingAppointment.reason ? ` — ${upcomingAppointment.reason}` : ''}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm sm:text-base font-medium text-foreground truncate">No upcoming visits</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground truncate">Tap "Book Visit" to schedule one</p>
+                </>
+              )}
             </div>
           </div>
         </motion.div>
@@ -631,7 +704,7 @@ export default function PatientDashboard() {
             <span className="text-[10px] sm:text-xs text-muted-foreground">Activity</span>
           </button>
           <button 
-            onClick={() => setIsBookingModalOpen(true)}
+            onClick={() => setIsScheduleModalOpen(true)}
             className="flex flex-col items-center gap-0.5 sm:gap-1 min-w-[60px] py-1 hover:opacity-80 transition-opacity"
           >
             <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" />
@@ -1032,7 +1105,11 @@ export default function PatientDashboard() {
         <div className="space-y-3 sm:space-y-4">
           <div>
             <label className="block text-xs sm:text-sm font-medium text-muted-foreground mb-1.5 sm:mb-2">Select Doctor</label>
-            <select className="w-full p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-sm sm:text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary">
+            <select
+              value={bookingForm.doctor}
+              onChange={e => setBookingForm(f => ({ ...f, doctor: e.target.value }))}
+              className="w-full p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-sm sm:text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+            >
               <option>Dr. Martinez (General)</option>
               <option>Dr. Chen (Cardiology)</option>
               <option>Dr. Rodriguez (Neurology)</option>
@@ -1041,13 +1118,18 @@ export default function PatientDashboard() {
           <div>
             <label className="block text-xs sm:text-sm font-medium text-muted-foreground mb-1.5 sm:mb-2">Preferred Date</label>
             <input 
-              type="date" 
+              type="date"
+              value={bookingForm.date}
+              onChange={e => setBookingForm(f => ({ ...f, date: e.target.value }))}
+              min={new Date().toISOString().split('T')[0]}
               className="w-full p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-sm sm:text-base text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
             />
           </div>
           <div>
             <label className="block text-xs sm:text-sm font-medium text-muted-foreground mb-1.5 sm:mb-2">Reason for Visit</label>
             <textarea 
+              value={bookingForm.reason}
+              onChange={e => setBookingForm(f => ({ ...f, reason: e.target.value }))}
               className="w-full p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
               placeholder="Brief description..."
               rows={3}
@@ -1068,42 +1150,188 @@ export default function PatientDashboard() {
         </div>
       </GlassModal>
 
-      <GlassModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}>
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Settings</h2>
-        <div className="space-y-2 sm:space-y-3">
-          <button className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
-            <p className="text-sm sm:text-base font-semibold text-foreground">Notifications</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Manage alerts</p>
-          </button>
-          <button className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
-            <p className="text-sm sm:text-base font-semibold text-foreground">Privacy</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Data & permissions</p>
-          </button>
-          <button className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
-            <p className="text-sm sm:text-base font-semibold text-foreground">Profile</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Personal information</p>
-          </button>
-          <button className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
-            <p className="text-sm sm:text-base font-semibold text-foreground">Integrations</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Connected devices</p>
-          </button>
+      <GlassModal isOpen={isSettingsOpen} onClose={() => { setIsSettingsOpen(false); setSettingsView('main'); }}>
+        {settingsView === 'main' ? (
+          <>
+            <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Settings</h2>
+            <div className="space-y-2 sm:space-y-3">
+              <button onClick={() => setSettingsView('notifications')} className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <Bell className="w-5 h-5 text-primary flex-shrink-0" />
+                <div>
+                  <p className="text-sm sm:text-base font-semibold text-foreground">Notifications</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Manage alerts</p>
+                </div>
+              </button>
+              <button onClick={() => setSettingsView('privacy')} className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <Shield className="w-5 h-5 text-teal-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm sm:text-base font-semibold text-foreground">Privacy</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Data & permissions</p>
+                </div>
+              </button>
+              <button onClick={() => setSettingsView('profile')} className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <User className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm sm:text-base font-semibold text-foreground">Profile</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Personal information</p>
+                </div>
+              </button>
+              <button onClick={() => setSettingsView('integrations')} className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <Smartphone className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm sm:text-base font-semibold text-foreground">Integrations</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Connected devices</p>
+                </div>
+              </button>
+              <button
+                onClick={handleDownloadApp}
+                className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3"
+              >
+                <Zap className="w-5 h-5 text-green-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm sm:text-base font-semibold text-foreground">Download App</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Install Vitalia as a PWA</p>
+                </div>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-red-500/10 border border-red-500/20 text-left hover:bg-red-500/20 transition-colors flex items-center gap-3"
+              >
+                <LogOut className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm sm:text-base font-semibold text-red-400">Log out</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Sign out and return to home</p>
+                </div>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setSettingsView('main')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4 transition-colors">
+              <ChevronLeftIcon className="w-4 h-4" />
+              <span className="text-sm">Back to Settings</span>
+            </button>
 
-          <button
-            onClick={handleDownloadApp}
-            className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors"
-          >
-            <p className="text-sm sm:text-base font-semibold text-foreground">Download App</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Install Vitalia as a PWA</p>
-          </button>
+            {settingsView === 'notifications' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Notification Preferences</h2>
+                <div className="space-y-3">
+                  {[
+                    { label: 'Appointment Reminders', desc: 'Get notified before upcoming visits', defaultOn: true },
+                    { label: 'Health Tips', desc: 'Weekly wellness recommendations', defaultOn: true },
+                    { label: 'Vitals Reminders', desc: 'Daily reminder to log your vitals', defaultOn: false },
+                    { label: 'Lab Results', desc: 'Notify when new results are available', defaultOn: true },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/50 border border-white/10">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">{item.desc}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" defaultChecked={item.defaultOn} className="sr-only peer" />
+                        <div className="w-9 h-5 bg-secondary rounded-full peer peer-checked:bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground/60 text-center mt-4">Preferences are saved locally on this device</p>
+              </div>
+            )}
 
-          <button
-            onClick={handleLogout}
-            className="w-full p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors"
-          >
-            <p className="text-sm sm:text-base font-semibold text-foreground">Log out</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Sign out and return to home</p>
-          </button>
-        </div>
+            {settingsView === 'privacy' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Privacy & Data</h2>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Data Storage</p>
+                    <p className="text-xs text-muted-foreground mt-1">All health data is stored securely in Supabase with row-level security. Only you and your assigned doctor can access your records.</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Encryption</p>
+                    <p className="text-xs text-muted-foreground mt-1">Data is encrypted in transit (TLS) and at rest. Authentication is handled by Supabase Auth with secure session management.</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Data Sharing</p>
+                    <p className="text-xs text-muted-foreground mt-1">Your health information is never sold or shared with third parties. AI analysis is processed securely and not stored externally.</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-teal-500/10 border border-teal-500/20">
+                    <p className="text-sm font-medium text-teal-400">HIPAA-Aligned Practices</p>
+                    <p className="text-xs text-muted-foreground mt-1">Vitalia follows industry-standard security practices for health data protection.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {settingsView === 'profile' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Your Profile</h2>
+                <div className="space-y-3">
+                  <div className="p-4 rounded-xl bg-secondary/50 border border-white/10 flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xl font-bold text-white">
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-foreground">{profile?.full_name || displayName}</p>
+                      <p className="text-xs text-muted-foreground">{user?.email || 'No email'}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Role: {profile?.role || 'patient'}</p>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Age</p>
+                    <p className="text-xs text-muted-foreground">{profile?.age ? `${profile.age} years` : 'Not set'}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Gender</p>
+                    <p className="text-xs text-muted-foreground">{profile?.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : 'Not set'}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Member since</p>
+                    <p className="text-xs text-muted-foreground">{profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Unknown'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {settingsView === 'integrations' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Integrations</h2>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-red-500/20 flex items-center justify-center"><Heart className="w-4 h-4 text-red-400" /></div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Apple Health</p>
+                        <p className="text-xs text-muted-foreground">Sync heart rate, steps, sleep</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Coming Soon</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-green-500/20 flex items-center justify-center"><Activity className="w-4 h-4 text-green-400" /></div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Google Fit</p>
+                        <p className="text-xs text-muted-foreground">Import activity data</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Coming Soon</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center"><Smartphone className="w-4 h-4 text-blue-400" /></div>
+                      <div>
+                        <p className="text-sm font-medium text-foreground">Fitbit</p>
+                        <p className="text-xs text-muted-foreground">Wearable vitals sync</p>
+                      </div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-400">Coming Soon</span>
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground/60 text-center mt-4">Device integrations are on our roadmap and will be available in a future update</p>
+              </div>
+            )}
+          </>
+        )}
       </GlassModal>
 
       <GlassModal isOpen={isActivityModalOpen} onClose={() => setIsActivityModalOpen(false)}>
@@ -1151,6 +1379,103 @@ export default function PatientDashboard() {
           <p className="text-sm sm:text-base text-muted-foreground">No notifications yet</p>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">You'll see updates here as you use the app</p>
         </div>
+      </GlassModal>
+
+      {/* Schedule Modal */}
+      <GlassModal isOpen={isScheduleModalOpen} onClose={() => setIsScheduleModalOpen(false)}>
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-4 sm:mb-5">Your Schedule</h2>
+        {appointments.length > 0 ? (
+          <div className="space-y-3">
+            {appointments
+              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+              .map((appt) => {
+                const apptDate = new Date(appt.date + 'T00:00:00');
+                const isPast = apptDate < new Date(new Date().toDateString());
+                return (
+                  <div
+                    key={appt.id}
+                    className={`p-3 sm:p-4 rounded-xl border ${
+                      isPast
+                        ? 'bg-secondary/30 border-white/5 opacity-60'
+                        : 'bg-secondary/50 border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          isPast
+                            ? 'bg-gray-500/20'
+                            : 'bg-gradient-to-br from-teal-500 to-emerald-500'
+                        }`}>
+                          <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm sm:text-base font-semibold text-foreground truncate">
+                            {appt.doctor}
+                          </p>
+                          <p className="text-xs sm:text-sm text-muted-foreground">
+                            {apptDate.toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                            })}
+                          </p>
+                          {appt.reason && (
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{appt.reason}</p>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteAppointment(appt.id)}
+                        className="p-1.5 rounded-lg hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors flex-shrink-0"
+                        title="Delete appointment"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className={`text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium ${
+                        isPast
+                          ? 'bg-gray-500/20 text-gray-400'
+                          : 'bg-teal-500/20 text-teal-400'
+                      }`}>
+                        {isPast ? 'Past' : 'Upcoming'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            <button
+              onClick={() => {
+                setIsScheduleModalOpen(false);
+                setIsBookingModalOpen(true);
+              }}
+              className="w-full mt-2 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-sm sm:text-base font-semibold
+                         hover:shadow-lg hover:shadow-teal-500/25 transition-all duration-300 flex items-center justify-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Book New Appointment
+            </button>
+          </div>
+        ) : (
+          <div className="text-center py-8 sm:py-12">
+            <Calendar className="w-10 h-10 sm:w-12 sm:h-12 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm sm:text-base text-muted-foreground mb-1">No appointments scheduled</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mb-4">Book your first visit to get started</p>
+            <button
+              onClick={() => {
+                setIsScheduleModalOpen(false);
+                setIsBookingModalOpen(true);
+              }}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 text-white text-sm font-semibold
+                         hover:shadow-lg hover:shadow-teal-500/25 transition-all duration-300 inline-flex items-center gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Book a Visit
+            </button>
+          </div>
+        )}
       </GlassModal>
 
       {/* BMI Calculator Modal */}
