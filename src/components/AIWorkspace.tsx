@@ -34,7 +34,7 @@ interface Vitals {
 }
 
 interface EnrichedPatient {
-  id: number;
+  id: string;
   name: string;
   age: number;
   status: string;

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { 
@@ -28,6 +28,7 @@ import avatar2 from "@/assets/avatar-2.jpg";
 import avatar3 from "@/assets/avatar-3.jpg";
 import avatar4 from "@/assets/avatar-4.jpg";
 import healthPattern from "@/assets/health-pattern.jpg";
+import { getAllPatientProfiles } from "@/lib/supabase";
 
 interface MedicalHistory {
   allergies: string[];
@@ -63,7 +64,7 @@ interface Vitals {
 }
 
 interface EnrichedPatient {
-  id: number;
+  id: string;
   name: string;
   age: number;
   avatar: string;
@@ -75,157 +76,10 @@ interface EnrichedPatient {
   vitals: Vitals;
 }
 
-const patients: EnrichedPatient[] = [
-  { 
-    id: 1, 
-    name: "Michelle Johnson", 
-    age: 45, 
-    avatar: avatar1, 
-    status: "low", 
-    lastVisit: "Jan 10, 2026",
-    medical_history: {
-      allergies: ["Penicillin", "Shellfish"],
-      chronic_conditions: ["Type 2 Diabetes (controlled)"],
-      past_surgeries: [
-        { procedure: "Appendectomy", date: "March 2019" },
-        { procedure: "Cholecystectomy", date: "July 2021" }
-      ],
-      current_medications: ["Metformin 1000mg BID", "Atorvastatin 20mg daily"]
-    },
-    recent_symptoms: [
-      { symptom: "Mild fatigue", severity: 3, reported_date: "Jan 9, 2026", duration: "2 days" },
-      { symptom: "Occasional dizziness", severity: 4, reported_date: "Jan 8, 2026", duration: "4 days" }
-    ],
-    consultations: [
-      { date: "Jan 10, 2026", doctor: "Dr. Martinez", diagnosis: "Routine diabetes check", notes: "A1C stable at 6.2%. Continue current regimen." },
-      { date: "Oct 15, 2025", doctor: "Dr. Chen", diagnosis: "Annual physical", notes: "All vitals normal. Cholesterol well-managed." }
-    ],
-    vitals: {
-      heart_rate: 72,
-      blood_pressure: "120/80",
-      temperature: 98.6,
-      oxygen_level: 98,
-      weight: 154,
-      bmi: 24.1,
-      bmi_category: "Normal",
-      bmi_trend: "down",
-      last_updated: "Jan 10, 2026"
-    }
-  },
-  { 
-    id: 2, 
-    name: "David Chen", 
-    age: 32, 
-    avatar: avatar2, 
-    status: "medium",
-    lastVisit: "Jan 8, 2026",
-    medical_history: {
-      allergies: [],
-      chronic_conditions: ["Hypertension (Stage 1)"],
-      past_surgeries: [],
-      current_medications: ["Lisinopril 10mg daily"]
-    },
-    recent_symptoms: [
-      { symptom: "Persistent headaches", severity: 7, reported_date: "Jan 7, 2026", duration: "5 days" },
-      { symptom: "Neck stiffness", severity: 5, reported_date: "Jan 7, 2026", duration: "3 days" },
-      { symptom: "Difficulty concentrating", severity: 6, reported_date: "Jan 6, 2026", duration: "1 week" }
-    ],
-    consultations: [
-      { date: "Jan 8, 2026", doctor: "Dr. Martinez", diagnosis: "Tension headache with BP concern", notes: "BP elevated at 138/88. Stress-related symptoms. Advised lifestyle modifications." },
-      { date: "Nov 20, 2025", doctor: "Dr. Martinez", diagnosis: "HTN follow-up", notes: "BP trending up. Increased Lisinopril dose." }
-    ],
-    vitals: {
-      heart_rate: 78,
-      blood_pressure: "138/88",
-      temperature: 98.4,
-      oxygen_level: 97,
-      weight: 182,
-      bmi: 27.3,
-      bmi_category: "Overweight",
-      bmi_trend: "up",
-      last_updated: "Jan 8, 2026"
-    }
-  },
-  { 
-    id: 3, 
-    name: "Elena Rodriguez", 
-    age: 58, 
-    avatar: avatar3, 
-    status: "low",
-    lastVisit: "Jan 5, 2026",
-    medical_history: {
-      allergies: ["Latex"],
-      chronic_conditions: ["Osteoarthritis (knees)", "Hypothyroidism"],
-      past_surgeries: [
-        { procedure: "Hysterectomy", date: "June 2018" }
-      ],
-      current_medications: ["Levothyroxine 75mcg daily", "Ibuprofen 400mg PRN"]
-    },
-    recent_symptoms: [
-      { symptom: "Knee pain (left)", severity: 5, reported_date: "Jan 4, 2026", duration: "ongoing" }
-    ],
-    consultations: [
-      { date: "Jan 5, 2026", doctor: "Dr. Chen", diagnosis: "Osteoarthritis management", notes: "Stable condition. Continue current treatment. Consider PT referral." },
-      { date: "Sep 12, 2025", doctor: "Dr. Rodriguez", diagnosis: "Thyroid follow-up", notes: "TSH levels normal. Maintain current dose." }
-    ],
-    vitals: {
-      heart_rate: 68,
-      blood_pressure: "118/76",
-      temperature: 98.2,
-      oxygen_level: 99,
-      weight: 162,
-      bmi: 23.6,
-      bmi_category: "Normal",
-      bmi_trend: "stable",
-      last_updated: "Jan 5, 2026"
-    }
-  },
-  { 
-    id: 4, 
-    name: "Robert Miller", 
-    age: 67, 
-    avatar: avatar4, 
-    status: "high", 
-    lastVisit: "Jan 3, 2026",
-    medical_history: {
-      allergies: ["Aspirin", "Sulfa drugs"],
-      chronic_conditions: ["CHF (NYHA Class II)", "Type 2 Diabetes", "Chronic Kidney Disease (Stage 3)"],
-      past_surgeries: [
-        { procedure: "Coronary artery bypass graft", date: "April 2020" },
-        { procedure: "Left knee replacement", date: "November 2022" }
-      ],
-      current_medications: [
-        "Furosemide 40mg BID",
-        "Carvedilol 25mg BID", 
-        "Insulin glargine 30 units qHS",
-        "Atorvastatin 80mg daily"
-      ]
-    },
-    recent_symptoms: [
-      { symptom: "Shortness of breath on exertion", severity: 8, reported_date: "Jan 2, 2026", duration: "3 days" },
-      { symptom: "Ankle swelling (bilateral)", severity: 7, reported_date: "Jan 2, 2026", duration: "1 week" },
-      { symptom: "Chest tightness", severity: 6, reported_date: "Jan 1, 2026", duration: "intermittent" }
-    ],
-    consultations: [
-      { date: "Jan 3, 2026", doctor: "Dr. Martinez", diagnosis: "CHF exacerbation", notes: "Increased Furosemide. Monitor daily weights. Consider hospitalization if worsens." },
-      { date: "Dec 15, 2025", doctor: "Dr. Chen", diagnosis: "Cardiology follow-up", notes: "EF 35%. Stable on current medications." }
-    ],
-    vitals: {
-      heart_rate: 88,
-      blood_pressure: "142/92",
-      temperature: 98.8,
-      oxygen_level: 94,
-      weight: 210,
-      bmi: 31.2,
-      bmi_category: "Obese",
-      bmi_trend: "up",
-      last_updated: "Jan 3, 2026"
-    }
-  }
-];
+const defaultAvatars = [avatar1, avatar2, avatar3, avatar4];
 
 interface SelectedPatient {
-  id: number;
+  id: string;
   name: string;
   age: number;
   avatar: string;
@@ -250,72 +104,53 @@ export default function DoctorDashboard() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
+  // Real patient data from Supabase
+  const [patients, setPatients] = useState<EnrichedPatient[]>([]);
+  const [patientsLoading, setPatientsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadPatients() {
+      try {
+        const profiles = await getAllPatientProfiles();
+        if (cancelled) return;
+        const mapped: EnrichedPatient[] = profiles.map((p, i) => ({
+          id: p.id,
+          name: p.full_name,
+          age: p.age ?? 0,
+          avatar: p.avatar_url || defaultAvatars[i % defaultAvatars.length],
+          status: "low" as const,
+          lastVisit: "No visits yet",
+          medical_history: { allergies: [], chronic_conditions: [], past_surgeries: [], current_medications: [] },
+          recent_symptoms: [],
+          consultations: [],
+          vitals: {
+            heart_rate: 0, blood_pressure: "--/--", temperature: 0, oxygen_level: 0,
+            weight: 0, bmi: 0, bmi_category: "Normal" as const, bmi_trend: "stable" as const,
+            last_updated: "No data yet"
+          }
+        }));
+        setPatients(mapped);
+      } catch (err) {
+        console.error("Failed to load patients:", err);
+      } finally {
+        if (!cancelled) setPatientsLoading(false);
+      }
+    }
+    loadPatients();
+    return () => { cancelled = true; };
+  }, []);
+
   // Chat state
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [isTyping, setIsTyping] = useState(false);
   
-  // Mock conversations data
-  const [conversations] = useState([
-    {
-      patientId: 1,
-      patientName: "Michelle Johnson",
-      patientAvatar: avatar1,
-      lastMessage: "Thank you for the advice, feeling better!",
-      lastMessageTime: "2h ago",
-      unreadCount: 0,
-      isOnline: true
-    },
-    {
-      patientId: 2,
-      patientName: "David Chen",
-      patientAvatar: avatar2,
-      lastMessage: "When should I come in for the follow-up?",
-      lastMessageTime: "1d ago",
-      unreadCount: 2,
-      isOnline: false
-    },
-    {
-      patientId: 3,
-      patientName: "Elena Rodriguez",
-      patientAvatar: avatar3,
-      lastMessage: "The medication is working well",
-      lastMessageTime: "3h ago",
-      unreadCount: 0,
-      isOnline: true
-    },
-    {
-      patientId: 4,
-      patientName: "Robert Miller",
-      patientAvatar: avatar4,
-      lastMessage: "I'm experiencing the symptoms we discussed",
-      lastMessageTime: "30m ago",
-      unreadCount: 1,
-      isOnline: true
-    }
-  ]);
+  // Conversations — empty until real messaging is implemented
+  const [conversations] = useState<{ patientId: number; patientName: string; patientAvatar: string; lastMessage: string; lastMessageTime: string; unreadCount: number; isOnline: boolean }[]>([]);
 
-  // Mock messages for selected conversation
-  const [chatMessages, setChatMessages] = useState<{ [key: number]: any[] }>({
-    1: [
-      { id: 1, sender: "patient", content: "Hi Dr. Martinez, I wanted to update you on my progress.", timestamp: "10:00 AM", read: true },
-      { id: 2, sender: "doctor", content: "Hello Michelle! I'm glad to hear from you. How have you been feeling?", timestamp: "10:02 AM", read: true },
-      { id: 3, sender: "patient", content: "Much better! My blood pressure has been stable and I've been following the diet plan.", timestamp: "10:05 AM", read: true },
-      { id: 4, sender: "doctor", content: "That's excellent news! Keep up the great work.", timestamp: "10:07 AM", read: true },
-      { id: 5, sender: "patient", content: "Thank you for the advice, feeling better!", timestamp: "10:10 AM", read: true }
-    ],
-    2: [
-      { id: 1, sender: "patient", content: "Good morning Doctor", timestamp: "9:00 AM", read: true },
-      { id: 2, sender: "doctor", content: "Good morning David! How can I help you today?", timestamp: "9:15 AM", read: false },
-      { id: 3, sender: "patient", content: "When should I come in for the follow-up?", timestamp: "Yesterday", read: false }
-    ],
-    3: [
-      { id: 1, sender: "patient", content: "The medication is working well", timestamp: "2:30 PM", read: true }
-    ],
-    4: [
-      { id: 1, sender: "patient", content: "I'm experiencing the symptoms we discussed", timestamp: "4:30 PM", read: false }
-    ]
-  });
+  // Chat messages — empty until real messaging is implemented
+  const [chatMessages, setChatMessages] = useState<{ [key: number]: any[] }>({});
 
   const totalUnreadCount = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
 
@@ -334,25 +169,6 @@ export default function DoctorDashboard() {
       ...prev,
       [selectedConversationId]: [...(prev[selectedConversationId] || []), newMessage]
     }));
-
-    // Simulate patient typing and response
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      setTimeout(() => {
-        const patientReply = {
-          id: (chatMessages[selectedConversationId]?.length || 0) + 2,
-          sender: "patient" as const,
-          content: "Thank you, Doctor! I appreciate your help.",
-          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          read: true
-        };
-        setChatMessages(prev => ({
-          ...prev,
-          [selectedConversationId]: [...(prev[selectedConversationId] || []), patientReply]
-        }));
-      }, 500);
-    }, 2000);
   };
 
   const handleSelectConversation = (patientId: number) => {
@@ -364,8 +180,16 @@ export default function DoctorDashboard() {
   );
 
   if (selectedPatient) {
-    const fullPatient = patients.find(p => p.id === selectedPatient.id)!;
+    const fullPatient = patients.find(p => p.id === selectedPatient.id);
     
+    if (!fullPatient) {
+      return (
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <p className="text-muted-foreground">Loading patient data…</p>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-background">
         {/* Patient Detail View */}
@@ -742,10 +566,10 @@ export default function DoctorDashboard() {
         {/* Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-6 sm:mb-8">
           {[
-            { label: "Total Patients", value: "248", icon: Users, color: "text-primary" },
-            { label: "Today's Visits", value: "12", icon: Calendar, color: "text-accent" },
-            { label: "Pending Reviews", value: "5", icon: Activity, color: "text-status-medium" },
-            { label: "Critical Alerts", value: "2", icon: Heart, color: "text-status-high" },
+            { label: "Total Patients", value: String(patients.length), icon: Users, color: "text-primary" },
+            { label: "Today's Visits", value: "0", icon: Calendar, color: "text-accent" },
+            { label: "Pending Reviews", value: "0", icon: Activity, color: "text-status-medium" },
+            { label: "Critical Alerts", value: String(patients.filter(p => p.status === 'high').length), icon: Heart, color: "text-status-high" },
           ].map((stat, i) => (
             <motion.div
               key={stat.label}
@@ -784,18 +608,32 @@ export default function DoctorDashboard() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-            {filteredPatients.map((patient, i) => (
-              <PatientCard
-                key={patient.id}
-                name={patient.name}
-                age={patient.age}
-                avatar={patient.avatar}
-                status={patient.status}
-                lastVisit={patient.lastVisit}
-                onClick={() => setSelectedPatient(patient)}
-                delay={0.2 + i * 0.1}
-              />
-            ))}
+            {patientsLoading ? (
+              <div className="col-span-full flex items-center justify-center py-12">
+                <p className="text-muted-foreground">Loading patients…</p>
+              </div>
+            ) : filteredPatients.length === 0 ? (
+              <div className="col-span-full flex flex-col items-center justify-center py-12 text-center">
+                <Users className="w-10 h-10 text-muted-foreground/30 mb-3" />
+                <p className="text-sm text-muted-foreground">
+                  {searchQuery ? 'No patients match your search' : 'No patients registered yet'}
+                </p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Patients will appear here once they sign up</p>
+              </div>
+            ) : (
+              filteredPatients.map((patient, i) => (
+                <PatientCard
+                  key={patient.id}
+                  name={patient.name}
+                  age={patient.age}
+                  avatar={patient.avatar}
+                  status={patient.status}
+                  lastVisit={patient.lastVisit}
+                  onClick={() => setSelectedPatient(patient)}
+                  delay={0.2 + i * 0.1}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -822,31 +660,11 @@ export default function DoctorDashboard() {
       <GlassModal isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)}>
         <h2 className="text-2xl font-bold text-foreground mb-4">Notifications</h2>
         <div className="space-y-3 max-h-96 overflow-y-auto">
-          {[
-            { title: "New Patient Registration", message: "New patient registered", time: "5 min ago", type: "info", unread: true },
-            { title: "Critical Alert", message: "Robert Miller - High BP reading", time: "1 hour ago", type: "alert", unread: true },
-            { title: "Appointment Confirmed", message: "David Chen - Tomorrow 10:00 AM", time: "2 hours ago", type: "success", unread: false },
-            { title: "Lab Results Ready", message: "Elena Rodriguez - Blood work complete", time: "5 hours ago", type: "info", unread: false },
-          ].map((notif, i) => (
-            <div key={i} className={`p-4 rounded-xl border ${
-              notif.unread 
-                ? notif.type === 'alert' 
-                  ? 'bg-status-high/10 border-status-high/30' 
-                  : 'bg-primary/10 border-primary/30'
-                : 'bg-secondary/50 border-white/10'
-            }`}>
-              <div className="flex justify-between items-start mb-1">
-                <p className="font-semibold text-foreground">{notif.title}</p>
-                {notif.unread && (
-                  <div className={`w-2 h-2 rounded-full ${
-                    notif.type === 'alert' ? 'bg-status-high' : 'bg-primary'
-                  }`} />
-                )}
-              </div>
-              <p className="text-sm text-muted-foreground mb-1">{notif.message}</p>
-              <p className="text-xs text-muted-foreground">{notif.time}</p>
-            </div>
-          ))}
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <Bell className="w-10 h-10 text-muted-foreground/30 mb-3" />
+            <p className="text-sm text-muted-foreground">No notifications yet</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">You'll see alerts and updates here</p>
+          </div>
         </div>
         <button className="btn-primary w-full mt-4">
           Mark All as Read
@@ -864,18 +682,7 @@ export default function DoctorDashboard() {
         onSendMessage={handleSendMessage}
         isTyping={isTyping}
         onViewProfile={() => {
-          const patient = patients.find(p => p.id === selectedConversationId);
-          if (patient) {
-            setSelectedPatient({
-              id: patient.id,
-              name: patient.name,
-              age: patient.age,
-              avatar: patient.avatar,
-              status: patient.status,
-              lastVisit: patient.lastVisit
-            });
-            setIsChatOpen(false);
-          }
+          // Messaging not yet connected to real patient data
         }}
       />
     </div>

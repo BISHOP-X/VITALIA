@@ -20,7 +20,9 @@ import {
   Loader2,
   Scale,
   Ruler,
-  Calculator
+  Calculator,
+  Plus,
+  Thermometer
 } from "lucide-react";
 import { HealthRing } from "@/components/HealthRing";
 import { ActionCard } from "@/components/ActionCard";
@@ -28,8 +30,9 @@ import { GlassModal } from "@/components/GlassModal";
 import { ChatButton } from "@/components/ChatButton";
 import { ChatPanel } from "@/components/ChatPanel";
 import { toast } from "@/hooks/use-toast";
-import { logSymptom, saveBMIRecord as saveBMIToSupabase, isDemoMode } from "@/lib/supabase";
+import { logSymptom, saveBMIRecord as saveBMIToSupabase, isDemoMode, saveVitals } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
+import { usePatientData } from "@/hooks/usePatientData";
 import healthPattern from "@/assets/health-pattern.jpg";
 
 // Common symptom types for quick selection
@@ -45,16 +48,59 @@ const bodyLocations = [
   "Left Arm", "Right Arm", "Left Leg", "Right Leg", "Other"
 ];
 
-const quickStats = [
-  { label: "Heart Rate", value: "72", unit: "bpm", trend: "normal" },
-  { label: "Blood Pressure", value: "120/80", unit: "mmHg", trend: "normal" },
-  { label: "Sleep", value: "7.5", unit: "hrs", trend: "good" },
-  { label: "BMI", value: "24.1", unit: "Normal", trend: "good", clickable: true },
-];
-
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const { profile, user, signOut } = useAuth();
+  const { symptoms, bmiRecords, latestVitals, vitalsHistory, loading: dataLoading, refresh } = usePatientData();
+
+  // Dynamic quick stats from real Supabase data
+  const quickStats = [
+    {
+      label: "Heart Rate",
+      value: latestVitals?.heart_rate?.toString() ?? "--",
+      unit: latestVitals?.heart_rate ? "bpm" : "",
+      trend: "normal" as const,
+    },
+    {
+      label: "Blood Pressure",
+      value: latestVitals?.systolic_bp && latestVitals?.diastolic_bp
+        ? `${latestVitals.systolic_bp}/${latestVitals.diastolic_bp}`
+        : "--",
+      unit: latestVitals?.systolic_bp ? "mmHg" : "",
+      trend: "normal" as const,
+    },
+    {
+      label: "Sleep",
+      value: latestVitals?.sleep_hours?.toString() ?? "--",
+      unit: latestVitals?.sleep_hours ? "hrs" : "",
+      trend: "good" as const,
+    },
+    {
+      label: "BMI",
+      value: bmiRecords.length > 0 ? bmiRecords[0].bmi_value.toFixed(1) : "--",
+      unit: bmiRecords.length > 0
+        ? bmiRecords[0].category.charAt(0).toUpperCase() + bmiRecords[0].category.slice(1)
+        : "",
+      trend: "good" as const,
+      clickable: true,
+    },
+  ];
+
+  // Health score based on data completeness (0-100)
+  const dataPoints = [
+    latestVitals?.heart_rate ? 1 : 0,
+    latestVitals?.systolic_bp ? 1 : 0,
+    latestVitals?.sleep_hours ? 1 : 0,
+    bmiRecords.length > 0 ? 1 : 0,
+    symptoms.length > 0 ? 1 : 0,
+  ].reduce((a, b) => a + b, 0);
+  const healthScore = dataPoints === 0 ? 0 : Math.round((dataPoints / 5) * 100);
+  const healthStatus: "low" | "medium" | "high" = healthScore >= 60 ? "low" : healthScore >= 30 ? "medium" : "high";
+  const healthMessage = healthScore === 0
+    ? "Start by recording your vitals and symptoms"
+    : healthScore < 60
+    ? "Keep adding health data to improve your score"
+    : "You're doing great! Keep it up.";
   const profileFirstName = profile?.full_name?.trim().split(/\s+/)[0];
   const userMetaFullName = typeof user?.user_metadata?.full_name === 'string' ? user.user_metadata.full_name : undefined;
   const userMetaFirstName = userMetaFullName?.trim().split(/\s+/)[0];
@@ -89,6 +135,9 @@ export default function PatientDashboard() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [isAIAdvisorOpen, setIsAIAdvisorOpen] = useState(false);
+  const [isVitalsModalOpen, setIsVitalsModalOpen] = useState(false);
+  const [vitalsForm, setVitalsForm] = useState({ heartRate: '', systolicBp: '', diastolicBp: '', sleepHours: '', oxygenSat: '', temperature: '', notes: '' });
+  const [isSavingVitals, setIsSavingVitals] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<{
     possible_conditions: { name: string; likelihood: number; description: string; }[];
@@ -111,48 +160,16 @@ export default function PatientDashboard() {
     color: string;
     description: string;
   } | null>(null);
-  const [bmiHistory] = useState([
-    { date: "Dec 15, 2025", bmi: 23.8 },
-    { date: "Nov 10, 2025", bmi: 24.2 },
-    { date: "Oct 5, 2025", bmi: 24.5 },
-    { date: "Sep 1, 2025", bmi: 24.8 },
-    { date: "Aug 1, 2025", bmi: 25.1 },
-    { date: "Jul 1, 2025", bmi: 25.3 },
-  ]);
+  // Real BMI history from Supabase
+  const bmiHistory = bmiRecords.map(r => ({
+    date: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    bmi: r.bmi_value,
+  }));
 
   // Chat state
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    {
-      id: 1,
-      sender: "doctor" as const,
-      content: "Hi! How are you feeling today?",
-      timestamp: "10:30 AM",
-      read: true
-    },
-    {
-      id: 2,
-      sender: "patient" as const,
-      content: "Hi Dr. Martinez! I'm doing well, thank you. My vitals have been stable.",
-      timestamp: "10:32 AM",
-      read: true
-    },
-    {
-      id: 3,
-      sender: "doctor" as const,
-      content: "That's great to hear! Your latest health score of 87% is excellent. Keep up the good work with your exercise and sleep routine.",
-      timestamp: "10:33 AM",
-      read: true
-    },
-    {
-      id: 4,
-      sender: "patient" as const,
-      content: "Thank you! I have a question about the upcoming appointment.",
-      timestamp: "10:35 AM",
-      read: true
-    }
-  ]);
+  const [chatMessages, setChatMessages] = useState<{id: number; sender: "doctor" | "patient"; content: string; timestamp: string; read: boolean}[]>([]);
   const [unreadChatCount] = useState(0);
 
   // Symptom form state
@@ -220,6 +237,9 @@ export default function PatientDashboard() {
       title: "Symptom Logged",
       description: "Your health data has been recorded successfully.",
     });
+
+    // Refresh dashboard data
+    refresh();
 
     // Reset form
     setSelectedSymptoms([]);
@@ -381,8 +401,42 @@ export default function PatientDashboard() {
       title: "BMI Saved",
       description: "Your BMI record has been saved successfully.",
     });
+
+    // Refresh dashboard data
+    refresh();
+
     setIsBMIModalOpen(false);
     resetBMICalculator();
+  };
+
+  const handleSaveVitals = async () => {
+    const { heartRate, systolicBp, diastolicBp, sleepHours, oxygenSat, temperature, notes: vNotes } = vitalsForm;
+    // Require at least one field
+    if (!heartRate && !systolicBp && !sleepHours && !oxygenSat && !temperature) {
+      toast({ title: "Enter at least one vital", description: "Fill in at least one measurement to save.", variant: "destructive" });
+      return;
+    }
+    setIsSavingVitals(true);
+    try {
+      await saveVitals({
+        heart_rate: heartRate ? parseInt(heartRate) : undefined,
+        systolic_bp: systolicBp ? parseInt(systolicBp) : undefined,
+        diastolic_bp: diastolicBp ? parseInt(diastolicBp) : undefined,
+        sleep_hours: sleepHours ? parseFloat(sleepHours) : undefined,
+        oxygen_saturation: oxygenSat ? parseInt(oxygenSat) : undefined,
+        temperature: temperature ? parseFloat(temperature) : undefined,
+        notes: vNotes || undefined,
+      });
+      toast({ title: "Vitals Recorded", description: "Your vitals have been saved successfully." });
+      setVitalsForm({ heartRate: '', systolicBp: '', diastolicBp: '', sleepHours: '', oxygenSat: '', temperature: '', notes: '' });
+      setIsVitalsModalOpen(false);
+      refresh();
+    } catch (err) {
+      console.error('Vitals save failed:', err);
+      toast({ title: "Save Failed", description: "Could not save vitals. Please try again.", variant: "destructive" });
+    } finally {
+      setIsSavingVitals(false);
+    }
   };
 
   // Chat message handlers
@@ -396,24 +450,6 @@ export default function PatientDashboard() {
     };
     
     setChatMessages(prev => [...prev, newMessage]);
-    
-    // Simulate doctor typing and response
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      
-      // Auto-reply with mock response
-      setTimeout(() => {
-        const doctorReply = {
-          id: chatMessages.length + 2,
-          sender: "doctor" as const,
-          content: "Thanks for your message! I'll get back to you shortly with more details.",
-          timestamp: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          read: true
-        };
-        setChatMessages(prev => [...prev, doctorReply]);
-      }, 500);
-    }, 2000);
   };
 
   return (
@@ -455,7 +491,7 @@ export default function PatientDashboard() {
           {/* Health Ring */}
           <div className="flex flex-col items-center px-4">
             <div className="w-full max-w-[180px]">
-              <HealthRing progress={87} status="low" size={undefined} />
+              <HealthRing progress={healthScore} status={healthStatus} size={undefined} />
             </div>
             <motion.p
               initial={{ opacity: 0 }}
@@ -463,7 +499,7 @@ export default function PatientDashboard() {
               transition={{ delay: 1 }}
               className="mt-3 sm:mt-4 text-xs sm:text-sm text-muted-foreground text-center px-4"
             >
-              You're doing great! Keep it up.
+              {healthMessage}
             </motion.p>
           </div>
         </div>
@@ -471,6 +507,16 @@ export default function PatientDashboard() {
 
       {/* Quick Stats */}
       <div className="px-4 sm:px-6 -mt-2">
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="text-xs sm:text-sm font-medium text-muted-foreground">Your Vitals</h3>
+          <button
+            onClick={() => setIsVitalsModalOpen(true)}
+            className="flex items-center gap-1 text-xs text-teal-400 hover:text-teal-300 transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Record Vitals
+          </button>
+        </div>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {quickStats.map((stat, i) => (
             <motion.div
@@ -563,8 +609,8 @@ export default function PatientDashboard() {
               <Calendar className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm sm:text-base font-medium text-foreground truncate">Annual Check-up</p>
-              <p className="text-xs sm:text-sm text-muted-foreground truncate">Dr. Martinez • Jan 28, 2026</p>
+              <p className="text-sm sm:text-base font-medium text-foreground truncate">No upcoming visits</p>
+              <p className="text-xs sm:text-sm text-muted-foreground truncate">Tap "Book Visit" to schedule one</p>
             </div>
           </div>
         </motion.div>
@@ -946,25 +992,39 @@ export default function PatientDashboard() {
       </GlassModal>
 
       <GlassModal isOpen={isHistoryModalOpen} onClose={() => setIsHistoryModalOpen(false)}>
-        <h2 className="text-2xl font-bold text-foreground mb-4">Medical History</h2>
-        <div className="space-y-4 max-h-96 overflow-y-auto">
-          {[
-            { date: "Jan 10, 2026", type: "Check-up", doctor: "Dr. Martinez", status: "Completed" },
-            { date: "Dec 15, 2025", type: "Lab Results", doctor: "Dr. Chen", status: "Normal" },
-            { date: "Nov 3, 2025", type: "Consultation", doctor: "Dr. Martinez", status: "Follow-up needed" },
-          ].map((record, i) => (
-            <div key={i} className="p-4 rounded-xl bg-secondary/50 border border-white/10">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="font-semibold text-foreground">{record.type}</p>
-                  <p className="text-sm text-muted-foreground">{record.doctor}</p>
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Medical History</h2>
+        {symptoms.length === 0 ? (
+          <div className="text-center py-8 sm:py-12">
+            <FileText className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground mx-auto mb-2 sm:mb-3" />
+            <p className="text-sm sm:text-base text-muted-foreground">No medical history yet</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">Log your symptoms to start building your health history</p>
+            <button
+              onClick={() => { setIsHistoryModalOpen(false); setIsSymptomModalOpen(true); }}
+              className="btn-primary mt-4 text-sm sm:text-base py-2 sm:py-2.5 px-6"
+            >
+              Log Symptoms
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3 sm:space-y-4 max-h-80 sm:max-h-96 overflow-y-auto">
+            {symptoms.map((record) => (
+              <div key={record.id} className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10">
+                <div className="flex justify-between items-start mb-1.5 sm:mb-2 gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm sm:text-base font-semibold text-foreground truncate">{record.symptom_type}</p>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Severity: <span className={`font-medium ${
+                      record.severity === 'severe' ? 'text-red-400' : record.severity === 'moderate' ? 'text-orange-400' : 'text-green-400'
+                    }`}>{record.severity}</span></p>
+                  </div>
+                  <span className="text-[10px] sm:text-xs text-muted-foreground whitespace-nowrap">{new Date(record.created_at).toLocaleDateString()}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{record.date}</span>
+                {record.body_location && <p className="text-[10px] sm:text-xs text-muted-foreground">Location: {record.body_location}</p>}
+                {record.duration && <p className="text-[10px] sm:text-xs text-muted-foreground">Duration: {record.duration}</p>}
+                {record.notes && <p className="text-xs sm:text-sm text-muted-foreground mt-1.5 sm:mt-2 italic">{record.notes}</p>}
               </div>
-              <p className="text-sm text-muted-foreground">{record.status}</p>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </GlassModal>
 
       <GlassModal isOpen={isBookingModalOpen} onClose={() => setIsBookingModalOpen(false)}>
@@ -1001,24 +1061,11 @@ export default function PatientDashboard() {
 
       <GlassModal isOpen={isReminderModalOpen} onClose={() => setIsReminderModalOpen(false)}>
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Medication Reminders</h2>
-        <div className="space-y-2 sm:space-y-3 max-h-80 sm:max-h-96 overflow-y-auto">
-          {[
-            { name: "Metformin", time: "8:00 AM", frequency: "Daily" },
-            { name: "Lisinopril", time: "8:00 AM", frequency: "Daily" },
-            { name: "Vitamin D", time: "12:00 PM", frequency: "Daily" },
-          ].map((med, i) => (
-            <div key={i} className="p-3 sm:p-4 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10 flex items-center justify-between gap-3">
-              <div className="flex-1 min-w-0">
-                <p className="text-sm sm:text-base font-semibold text-foreground truncate">{med.name}</p>
-                <p className="text-xs sm:text-sm text-muted-foreground">{med.time} • {med.frequency}</p>
-              </div>
-              <div className="w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 border-primary flex-shrink-0" />
-            </div>
-          ))}
+        <div className="text-center py-8 sm:py-12">
+          <Clock className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground mx-auto mb-2 sm:mb-3" />
+          <p className="text-sm sm:text-base text-muted-foreground">No reminders set</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Medication reminders will appear here once configured by your doctor</p>
         </div>
-        <button className="btn-primary w-full mt-3 sm:mt-4 text-sm sm:text-base py-2.5 sm:py-3">
-          Add New Reminder
-        </button>
       </GlassModal>
 
       <GlassModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}>
@@ -1060,71 +1107,49 @@ export default function PatientDashboard() {
       </GlassModal>
 
       <GlassModal isOpen={isActivityModalOpen} onClose={() => setIsActivityModalOpen(false)}>
-        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Activity Tracking</h2>
-        <div className="space-y-3 sm:space-y-4">
-          {/* Daily Summary */}
-          <div className="glass-card p-3 sm:p-4 bg-gradient-to-br from-primary/10 to-accent/10">
-            <p className="text-xs sm:text-sm text-muted-foreground mb-2">Today's Summary</p>
-            <div className="grid grid-cols-3 gap-2 sm:gap-4">
-              <div className="text-center">
-                <p className="text-lg sm:text-2xl font-bold text-primary">8,432</p>
-                <p className="text-[10px] sm:text-xs text-muted-foreground">Steps</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-accent">7.5</p>
-                <p className="text-xs text-muted-foreground">Hours Sleep</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-primary">72</p>
-                <p className="text-xs text-muted-foreground">Avg BPM</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Recent Activities */}
-          <div>
-            <h3 className="text-xs sm:text-sm font-semibold text-foreground mb-2 sm:mb-3">Recent Activities</h3>
-            <div className="space-y-2 sm:space-y-3 max-h-64 sm:max-h-80 overflow-y-auto">
-              {[
-                { type: "Exercise", detail: "Morning walk - 30 minutes", time: "Today, 7:00 AM", icon: "🏃" },
-                { type: "Meal Logged", detail: "Breakfast tracked", time: "Today, 8:30 AM", icon: "🍳" },
-                { type: "Medication", detail: "Metformin taken", time: "Today, 9:00 AM", icon: "💊" },
-                { type: "Vitals", detail: "BP: 120/80, HR: 72", time: "Yesterday, 6:00 PM", icon: "❤️" },
-                { type: "Sleep", detail: "7.5 hours of quality sleep", time: "Last night", icon: "😴" },
-              ].map((activity, i) => (
-                <div key={i} className="p-2.5 sm:p-3 rounded-lg sm:rounded-xl bg-secondary/50 border border-white/10">
-                  <div className="flex items-start gap-2 sm:gap-3">
-                    <span className="text-xl sm:text-2xl">{activity.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs sm:text-sm font-semibold text-foreground">{activity.type}</p>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">{activity.detail}</p>
-                      <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1">{activity.time}</p>
-                    </div>
-                  </div>
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Activity & Vitals</h2>
+        {latestVitals ? (
+          <div className="space-y-3 sm:space-y-4">
+            <div className="glass-card p-3 sm:p-4 bg-gradient-to-br from-primary/10 to-accent/10">
+              <p className="text-xs sm:text-sm text-muted-foreground mb-2">Latest Recorded Vitals</p>
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="text-center">
+                  <p className="text-lg sm:text-2xl font-bold text-primary">{latestVitals.heart_rate ?? '--'}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Heart Rate</p>
                 </div>
-              ))}
+                <div className="text-center">
+                  <p className="text-lg sm:text-2xl font-bold text-accent">{latestVitals.sleep_hours ?? '--'}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">Hours Sleep</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg sm:text-2xl font-bold text-primary">{latestVitals.oxygen_saturation ?? '--'}</p>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground">O₂ Sat %</p>
+                </div>
+              </div>
+              <p className="text-[10px] sm:text-xs text-muted-foreground text-center mt-2">Recorded: {new Date(latestVitals.recorded_at).toLocaleDateString()}</p>
             </div>
+            <button onClick={() => { setIsActivityModalOpen(false); setIsVitalsModalOpen(true); }} className="btn-primary w-full text-sm sm:text-base py-2.5 sm:py-3">
+              Record New Vitals
+            </button>
           </div>
-        </div>
+        ) : (
+          <div className="text-center py-8 sm:py-12">
+            <Activity className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground mx-auto mb-2 sm:mb-3" />
+            <p className="text-sm sm:text-base text-muted-foreground">No activity recorded yet</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">Record your vitals to see a summary here</p>
+            <button onClick={() => { setIsActivityModalOpen(false); setIsVitalsModalOpen(true); }} className="btn-primary mt-4 text-sm sm:text-base py-2 sm:py-2.5 px-6">
+              Record Vitals
+            </button>
+          </div>
+        )}
       </GlassModal>
 
       <GlassModal isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)}>
         <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-3 sm:mb-4">Notifications</h2>
-        <div className="space-y-2 sm:space-y-3 max-h-80 sm:max-h-96 overflow-y-auto">
-          {[
-            { title: "Appointment Confirmed", message: "Annual check-up on Jan 28", time: "2 hours ago", unread: true },
-            { title: "Lab Results Ready", message: "Blood work results available", time: "1 day ago", unread: true },
-            { title: "Medication Reminder", message: "Time to take Metformin", time: "3 days ago", unread: false },
-          ].map((notif, i) => (
-            <div key={i} className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border ${notif.unread ? 'bg-primary/10 border-primary/30' : 'bg-secondary/50 border-white/10'}`}>
-              <div className="flex justify-between items-start mb-1 gap-2">
-                <p className="text-sm sm:text-base font-semibold text-foreground">{notif.title}</p>
-                {notif.unread && <div className="w-2 h-2 rounded-full bg-primary flex-shrink-0 mt-1" />}
-              </div>
-              <p className="text-xs sm:text-sm text-muted-foreground mb-1">{notif.message}</p>
-              <p className="text-[10px] sm:text-xs text-muted-foreground">{notif.time}</p>
-            </div>
-          ))}
+        <div className="text-center py-8 sm:py-12">
+          <Bell className="w-8 h-8 sm:w-10 sm:h-10 text-muted-foreground mx-auto mb-2 sm:mb-3" />
+          <p className="text-sm sm:text-base text-muted-foreground">No notifications yet</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">You'll see updates here as you use the app</p>
         </div>
       </GlassModal>
 
@@ -1394,6 +1419,105 @@ export default function PatientDashboard() {
             )}
           </div>
         )}
+      </GlassModal>
+
+      {/* Vitals Modal */}
+      <GlassModal isOpen={isVitalsModalOpen} onClose={() => setIsVitalsModalOpen(false)}>
+        <div className="p-4 sm:p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-rose-500 to-pink-500 flex items-center justify-center">
+              <Thermometer className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-foreground">Record Vitals</h2>
+              <p className="text-xs text-muted-foreground">Enter the values you have — leave the rest blank</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Heart Rate (bpm)</label>
+              <input
+                type="number"
+                placeholder="e.g. 72"
+                value={vitalsForm.heartRate}
+                onChange={e => setVitalsForm(f => ({ ...f, heartRate: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Systolic BP (mmHg)</label>
+              <input
+                type="number"
+                placeholder="e.g. 120"
+                value={vitalsForm.systolicBp}
+                onChange={e => setVitalsForm(f => ({ ...f, systolicBp: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Diastolic BP (mmHg)</label>
+              <input
+                type="number"
+                placeholder="e.g. 80"
+                value={vitalsForm.diastolicBp}
+                onChange={e => setVitalsForm(f => ({ ...f, diastolicBp: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Sleep (hours)</label>
+              <input
+                type="number"
+                step="0.5"
+                placeholder="e.g. 7.5"
+                value={vitalsForm.sleepHours}
+                onChange={e => setVitalsForm(f => ({ ...f, sleepHours: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">O₂ Saturation (%)</label>
+              <input
+                type="number"
+                placeholder="e.g. 98"
+                value={vitalsForm.oxygenSat}
+                onChange={e => setVitalsForm(f => ({ ...f, oxygenSat: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Temperature (°C)</label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="e.g. 36.6"
+                value={vitalsForm.temperature}
+                onChange={e => setVitalsForm(f => ({ ...f, temperature: e.target.value }))}
+                className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Notes (optional)</label>
+            <textarea
+              placeholder="Any additional notes…"
+              value={vitalsForm.notes}
+              onChange={e => setVitalsForm(f => ({ ...f, notes: e.target.value }))}
+              rows={2}
+              className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500 resize-none"
+            />
+          </div>
+
+          <button
+            onClick={handleSaveVitals}
+            disabled={isSavingVitals}
+            className="w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+          >
+            {isSavingVitals ? 'Saving…' : 'Save Vitals'}
+          </button>
+        </div>
       </GlassModal>
 
       {/* Floating Chat Button */}

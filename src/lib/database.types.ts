@@ -146,6 +146,47 @@ export interface Database {
           updated_at?: string
         }
       }
+      health_vitals: {
+        Row: {
+          id: string
+          patient_id: string
+          heart_rate: number | null
+          systolic_bp: number | null
+          diastolic_bp: number | null
+          sleep_hours: number | null
+          oxygen_saturation: number | null
+          temperature: number | null
+          notes: string | null
+          recorded_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          patient_id: string
+          heart_rate?: number | null
+          systolic_bp?: number | null
+          diastolic_bp?: number | null
+          sleep_hours?: number | null
+          oxygen_saturation?: number | null
+          temperature?: number | null
+          notes?: string | null
+          recorded_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          patient_id?: string
+          heart_rate?: number | null
+          systolic_bp?: number | null
+          diastolic_bp?: number | null
+          sleep_hours?: number | null
+          oxygen_saturation?: number | null
+          temperature?: number | null
+          notes?: string | null
+          recorded_at?: string
+          created_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never
@@ -176,6 +217,9 @@ export type BMIRecordInsert = Database['public']['Tables']['bmi_records']['Inser
 export type Consultation = Database['public']['Tables']['consultations']['Row']
 export type ConsultationInsert = Database['public']['Tables']['consultations']['Insert']
 export type ConsultationUpdate = Database['public']['Tables']['consultations']['Update']
+
+export type HealthVitals = Database['public']['Tables']['health_vitals']['Row']
+export type HealthVitalsInsert = Database['public']['Tables']['health_vitals']['Insert']
 
 // ============================================
 // AI RESPONSE TYPES

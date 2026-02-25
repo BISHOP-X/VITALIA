@@ -94,10 +94,13 @@ export async function signIn({ email, password }: SignInData) {
  * Sign out the current user
  */
 export async function signOut() {
-  // Prefer a local sign-out so the UI/session always clears even if the
-  // network request to revoke tokens fails.
-  const { error } = await (supabase.auth as any).signOut({ scope: 'local' })
-  if (error) throw error
+  // Best-effort local sign-out — clear session tokens without waiting on the
+  // network. Never throws so callers can always redirect after calling this.
+  try {
+    await supabase.auth.signOut()
+  } catch {
+    // ignore — we'll still do the page redirect
+  }
 }
 
 /**
@@ -235,6 +238,139 @@ export async function getBMIHistory(limit = 10) {
     .eq('patient_id', session.user.id)
     .order('created_at', { ascending: false })
     .limit(limit)
+
+  if (error) throw error
+  return data
+}
+
+// ============================================
+// HEALTH VITALS HELPERS
+// ============================================
+
+/**
+ * Save a vitals reading for the current patient
+ */
+export async function saveVitals(vitalsData: {
+  heart_rate?: number | null
+  systolic_bp?: number | null
+  diastolic_bp?: number | null
+  sleep_hours?: number | null
+  oxygen_saturation?: number | null
+  temperature?: number | null
+  notes?: string | null
+}) {
+  const session = await getSession()
+  if (!session?.user) throw new Error('Not authenticated')
+
+  const { data, error } = await supabase
+    .from('health_vitals')
+    .insert({
+      patient_id: session.user.id,
+      ...vitalsData,
+    })
+    .select()
+    .single()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Get the patient's most recent vitals reading
+ */
+export async function getLatestVitals() {
+  const session = await getSession()
+  if (!session?.user) throw new Error('Not authenticated')
+
+  const { data, error } = await supabase
+    .from('health_vitals')
+    .select('*')
+    .eq('patient_id', session.user.id)
+    .order('recorded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) throw error
+  return data
+}
+
+/**
+ * Get patient's vitals history
+ */
+export async function getVitalsHistory(limit = 20) {
+  const session = await getSession()
+  if (!session?.user) throw new Error('Not authenticated')
+
+  const { data, error } = await supabase
+    .from('health_vitals')
+    .select('*')
+    .eq('patient_id', session.user.id)
+    .order('recorded_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return data ?? []
+}
+
+// ============================================
+// DOCTOR HELPERS
+// ============================================
+
+/**
+ * Get all patient profiles (doctor only — RLS enforced)
+ */
+export async function getAllPatientProfiles() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'patient')
+    .order('created_at', { ascending: false })
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Get symptom logs for a specific patient (doctor access via RLS)
+ */
+export async function getPatientSymptoms(patientId: string, limit = 20) {
+  const { data, error } = await supabase
+    .from('symptom_logs')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Get BMI records for a specific patient (doctor access via RLS)
+ */
+export async function getPatientBMI(patientId: string, limit = 10) {
+  const { data, error } = await supabase
+    .from('bmi_records')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
+ * Get vitals for a specific patient (doctor access via RLS)
+ */
+export async function getPatientVitals(patientId: string) {
+  const { data, error } = await supabase
+    .from('health_vitals')
+    .select('*')
+    .eq('patient_id', patientId)
+    .order('recorded_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
 
   if (error) throw error
   return data
