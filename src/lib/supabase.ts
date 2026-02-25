@@ -187,6 +187,7 @@ export async function getCurrentProfile() {
 
 /**
  * Log a new symptom for the current patient
+ * userId is passed directly from the component — no getSession() needed.
  */
 export async function logSymptom(symptomData: {
   symptom_type: string
@@ -194,25 +195,16 @@ export async function logSymptom(symptomData: {
   duration?: string
   body_location?: string
   notes?: string
-}) {
-  console.log('[logSymptom] Starting...')
-  const session = await getSession()
-  if (!session?.user) {
-    console.error('[logSymptom] No authenticated session')
-    throw new Error('Not authenticated')
-  }
+}, userId: string) {
+  console.log('[logSymptom] Starting for user:', userId)
+  if (!userId) throw new Error('No user ID provided')
 
-  const cleanData: SymptomLogInsert = { patient_id: session.user.id }
-  for (const [key, value] of Object.entries(symptomData)) {
-    if (value !== undefined) {
-      ;(cleanData as Record<string, unknown>)[key] = value
-    }
-  }
-  console.log('[logSymptom] Inserting:', cleanData)
+  console.log('[logSymptom] Inserting:', { ...symptomData, patient_id: userId })
 
   const { error } = await supabase
     .from('symptom_logs')
-    .insert(cleanData)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert({ ...symptomData, patient_id: userId } as any)
 
   if (error) {
     console.error('[logSymptom] Supabase error:', error.message, error.code, error.details)
@@ -223,31 +215,23 @@ export async function logSymptom(symptomData: {
 
 /**
  * Save a BMI record for the current patient
+ * userId is passed directly from the component — no getSession() needed.
  */
 export async function saveBMIRecord(bmiData: {
   height_cm: number
   weight_kg: number
   bmi_value: number
   category: 'underweight' | 'normal' | 'overweight' | 'obese'
-}) {
-  console.log('[saveBMIRecord] Starting...')
-  const session = await getSession()
-  if (!session?.user) {
-    console.error('[saveBMIRecord] No authenticated session')
-    throw new Error('Not authenticated')
-  }
+}, userId: string) {
+  console.log('[saveBMIRecord] Starting for user:', userId)
+  if (!userId) throw new Error('No user ID provided')
 
-  const cleanData: BMIRecordInsert = { patient_id: session.user.id }
-  for (const [key, value] of Object.entries(bmiData)) {
-    if (value !== undefined) {
-      ;(cleanData as Record<string, unknown>)[key] = value
-    }
-  }
-  console.log('[saveBMIRecord] Inserting:', cleanData)
+  console.log('[saveBMIRecord] Inserting:', { ...bmiData, patient_id: userId })
 
   const { error } = await supabase
     .from('bmi_records')
-    .insert(cleanData)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert({ ...bmiData, patient_id: userId } as any)
 
   if (error) {
     console.error('[saveBMIRecord] Supabase error:', error.message, error.code, error.details)
@@ -298,6 +282,7 @@ export async function getBMIHistory(limit = 10) {
 
 /**
  * Save a vitals reading for the current patient
+ * userId is passed directly from the component — no getSession() needed.
  */
 export async function saveVitals(vitalsData: {
   heart_rate?: number | null
@@ -307,27 +292,23 @@ export async function saveVitals(vitalsData: {
   oxygen_saturation?: number | null
   temperature?: number | null
   notes?: string | null
-}) {
-  console.log('[saveVitals] Starting...')
-  const session = await getSession()
-  if (!session?.user) {
-    console.error('[saveVitals] No authenticated session')
-    throw new Error('Not authenticated')
-  }
-  console.log('[saveVitals] Authenticated as:', session.user.id)
+}, userId: string) {
+  console.log('[saveVitals] Starting for user:', userId)
+  if (!userId) throw new Error('No user ID provided')
 
-  // Clean out undefined keys so only real values are sent
-  const cleanData: HealthVitalsInsert = { patient_id: session.user.id }
+  // Filter out null/undefined so only filled values hit the DB
+  const payload: Record<string, unknown> = { patient_id: userId }
   for (const [key, value] of Object.entries(vitalsData)) {
-    if (value !== undefined) {
-      ;(cleanData as Record<string, unknown>)[key] = value
+    if (value !== null && value !== undefined) {
+      payload[key] = value
     }
   }
-  console.log('[saveVitals] Inserting:', cleanData)
+  console.log('[saveVitals] Inserting:', payload)
 
   const { error } = await supabase
     .from('health_vitals')
-    .insert(cleanData)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert(payload as any)
 
   if (error) {
     console.error('[saveVitals] Supabase error:', error.message, error.code, error.details)

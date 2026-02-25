@@ -267,7 +267,7 @@ export default function PatientDashboard() {
           duration,
           body_location: bodyLocation || undefined,
           notes: notes || undefined,
-        });
+        }, user?.id ?? '');
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Save timed out')), 15000)
         );
@@ -456,7 +456,7 @@ export default function PatientDashboard() {
           weight_kg: parseFloat(weightKg.toFixed(2)),
           bmi_value: bmiValue,
           category: categoryMap[bmiCategory.label] || "normal",
-        });
+        }, user?.id ?? '');
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Save timed out')), 15000)
         );
@@ -498,7 +498,7 @@ export default function PatientDashboard() {
         oxygen_saturation: oxygenSat ? parseInt(oxygenSat) : undefined,
         temperature: temperature ? parseFloat(temperature) : undefined,
         notes: vNotes || undefined,
-      });
+      }, user?.id ?? '');
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Save timed out — check your network connection')), 15000)
       );
