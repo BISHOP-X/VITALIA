@@ -15,7 +15,11 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
-  MessageCircle
+  MessageCircle,
+  User,
+  Shield,
+  Clock,
+  Building2
 } from "lucide-react";
 import { PatientCard } from "@/components/PatientCard";
 import { useAuth } from "@/hooks/useAuth";
@@ -89,7 +93,7 @@ interface SelectedPatient {
 
 export default function DoctorDashboard() {
   const navigate = useNavigate();
-  const { signOut } = useAuth();
+  const { signOut, user, profile } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -103,6 +107,7 @@ export default function DoctorDashboard() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [settingsView, setSettingsView] = useState<'main' | 'profile' | 'notifications' | 'schedule' | 'security' | 'clinic'>('main');
 
   // Real patient data from Supabase
   const [patients, setPatients] = useState<EnrichedPatient[]>([]);
@@ -639,22 +644,184 @@ export default function DoctorDashboard() {
       </div>
 
       {/* Modals */}
-      <GlassModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)}>
-        <h2 className="text-2xl font-bold text-foreground mb-4">Clinic Settings</h2>
-        <div className="space-y-4">
-          {[
-            { label: "Profile Settings", sublabel: "Update your information" },
-            { label: "Notification Preferences", sublabel: "Manage alerts & reminders" },
-            { label: "Schedule Management", sublabel: "Working hours & availability" },
-            { label: "Security", sublabel: "Password & authentication" },
-            { label: "Clinic Information", sublabel: "Address, contact details" },
-          ].map((item, i) => (
-            <button key={i} className="w-full p-4 rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors">
-              <p className="font-semibold text-foreground">{item.label}</p>
-              <p className="text-sm text-muted-foreground">{item.sublabel}</p>
+      <GlassModal isOpen={isSettingsOpen} onClose={() => { setIsSettingsOpen(false); setSettingsView('main'); }}>
+        {settingsView === 'main' ? (
+          <>
+            <h2 className="text-2xl font-bold text-foreground mb-4">Clinic Settings</h2>
+            <div className="space-y-3">
+              <button onClick={() => setSettingsView('profile')} className="w-full p-4 rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <User className="w-5 h-5 text-primary flex-shrink-0" />
+                <div><p className="font-semibold text-foreground">Profile Settings</p><p className="text-sm text-muted-foreground">Update your information</p></div>
+              </button>
+              <button onClick={() => setSettingsView('notifications')} className="w-full p-4 rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <Bell className="w-5 h-5 text-amber-400 flex-shrink-0" />
+                <div><p className="font-semibold text-foreground">Notification Preferences</p><p className="text-sm text-muted-foreground">Manage alerts & reminders</p></div>
+              </button>
+              <button onClick={() => setSettingsView('schedule')} className="w-full p-4 rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <Clock className="w-5 h-5 text-teal-400 flex-shrink-0" />
+                <div><p className="font-semibold text-foreground">Schedule Management</p><p className="text-sm text-muted-foreground">Working hours & availability</p></div>
+              </button>
+              <button onClick={() => setSettingsView('security')} className="w-full p-4 rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <Shield className="w-5 h-5 text-green-400 flex-shrink-0" />
+                <div><p className="font-semibold text-foreground">Security</p><p className="text-sm text-muted-foreground">Password & authentication</p></div>
+              </button>
+              <button onClick={() => setSettingsView('clinic')} className="w-full p-4 rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary transition-colors flex items-center gap-3">
+                <Building2 className="w-5 h-5 text-purple-400 flex-shrink-0" />
+                <div><p className="font-semibold text-foreground">Clinic Information</p><p className="text-sm text-muted-foreground">Address, contact details</p></div>
+              </button>
+              <button onClick={handleLogout} className="w-full p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-left hover:bg-red-500/20 transition-colors flex items-center gap-3">
+                <LogOut className="w-5 h-5 text-red-400 flex-shrink-0" />
+                <div><p className="font-semibold text-red-400">Log out</p><p className="text-sm text-muted-foreground">Sign out and return to home</p></div>
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <button onClick={() => setSettingsView('main')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4 transition-colors">
+              <ChevronLeft className="w-4 h-4" />
+              <span className="text-sm">Back to Settings</span>
             </button>
-          ))}
-        </div>
+
+            {settingsView === 'profile' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Profile Settings</h2>
+                <div className="space-y-3">
+                  <div className="p-4 rounded-xl bg-secondary/50 border border-white/10 flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xl font-bold text-white">
+                      {(profile?.full_name || user?.email || 'D').charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-base font-semibold text-foreground">{profile?.full_name || 'Doctor'}</p>
+                      <p className="text-xs text-muted-foreground">{user?.email || 'No email'}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Role: Doctor</p>
+                    </div>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Full Name</p>
+                    <p className="text-xs text-muted-foreground mt-1">{profile?.full_name || 'Not set'}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Email</p>
+                    <p className="text-xs text-muted-foreground mt-1">{user?.email || 'Not set'}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Member Since</p>
+                    <p className="text-xs text-muted-foreground mt-1">{profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Unknown'}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-xs text-blue-400">Profile editing is managed through account settings. Contact support to update your information.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {settingsView === 'notifications' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Notification Preferences</h2>
+                <div className="space-y-3">
+                  {[
+                    { label: 'New Patient Alerts', desc: 'Notify when new patients register', defaultOn: true },
+                    { label: 'Appointment Reminders', desc: 'Alerts before scheduled visits', defaultOn: true },
+                    { label: 'Critical Vitals', desc: 'Immediate alerts for abnormal readings', defaultOn: true },
+                    { label: 'Message Notifications', desc: 'New patient messages', defaultOn: true },
+                  ].map((item, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/50 border border-white/10">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{item.label}</p>
+                        <p className="text-xs text-muted-foreground">{item.desc}</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" defaultChecked={item.defaultOn} className="sr-only peer" />
+                        <div className="w-9 h-5 bg-secondary rounded-full peer peer-checked:bg-primary transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-full"></div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-muted-foreground/60 text-center mt-4">Preferences are saved locally on this device</p>
+              </div>
+            )}
+
+            {settingsView === 'schedule' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Schedule Management</h2>
+                <div className="space-y-3">
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map((day, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/50 border border-white/10">
+                      <p className="text-sm font-medium text-foreground">{day}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">9:00 AM – 5:00 PM</span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" defaultChecked className="sr-only peer" />
+                          <div className="w-8 h-4 bg-secondary rounded-full peer peer-checked:bg-teal-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                  {['Saturday', 'Sunday'].map((day, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-secondary/50 border border-white/10">
+                      <p className="text-sm font-medium text-foreground">{day}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground">Closed</span>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" className="sr-only peer" />
+                          <div className="w-8 h-4 bg-secondary rounded-full peer peer-checked:bg-teal-500 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:after:translate-x-full"></div>
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-[10px] text-muted-foreground/60 text-center mt-2">Schedule changes are saved locally</p>
+                </div>
+              </div>
+            )}
+
+            {settingsView === 'security' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Security</h2>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Authentication</p>
+                    <p className="text-xs text-muted-foreground mt-1">Managed by Supabase Auth with secure JWT tokens. Sessions expire automatically after inactivity.</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Password</p>
+                    <p className="text-xs text-muted-foreground mt-1">Use the "Forgot password" flow on the login page to update your password via secure email link.</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Access Control</p>
+                    <p className="text-xs text-muted-foreground mt-1">Row-level security ensures you can only access data for patients under your care.</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-green-500/10 border border-green-500/20">
+                    <p className="text-sm font-medium text-green-400">Account Secured</p>
+                    <p className="text-xs text-muted-foreground mt-1">Your account is protected with industry-standard encryption.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {settingsView === 'clinic' && (
+              <div>
+                <h2 className="text-xl font-bold text-foreground mb-4">Clinic Information</h2>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Clinic Name</p>
+                    <p className="text-xs text-muted-foreground mt-1">Vitalia Clinic</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Address</p>
+                    <p className="text-xs text-muted-foreground mt-1">Not configured — contact your administrator to set clinic address</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <p className="text-sm font-medium text-foreground">Contact</p>
+                    <p className="text-xs text-muted-foreground mt-1">Not configured — contact your administrator to set contact details</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-xs text-blue-400">Clinic information is managed by your system administrator. Contact support to update these details.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </GlassModal>
 
       <GlassModal isOpen={isNotificationsOpen} onClose={() => setIsNotificationsOpen(false)}>

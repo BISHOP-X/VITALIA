@@ -374,6 +374,20 @@ export async function getAllPatientProfiles() {
 }
 
 /**
+ * Get all doctor profiles (patient-side doctor search)
+ */
+export async function getAllDoctorProfiles() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('role', 'doctor')
+    .order('full_name', { ascending: true })
+
+  if (error) throw error
+  return data ?? []
+}
+
+/**
  * Get symptom logs for a specific patient (doctor access via RLS)
  */
 export async function getPatientSymptoms(patientId: string, limit = 20) {

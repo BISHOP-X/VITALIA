@@ -100,6 +100,7 @@ export function DoctorChatSidebar({
                 conversations={conversations}
                 selectedConversationId={selectedConversationId}
                 onSelectConversation={onSelectConversation}
+                onClose={onClose}
               />
             </div>
 

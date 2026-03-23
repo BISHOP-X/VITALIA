@@ -35,7 +35,7 @@ import { GlassModal } from "@/components/GlassModal";
 import { ChatButton } from "@/components/ChatButton";
 import { ChatPanel } from "@/components/ChatPanel";
 import { toast } from "@/hooks/use-toast";
-import { logSymptom, saveBMIRecord as saveBMIToSupabase, isDemoMode, saveVitals } from "@/lib/supabase";
+import { logSymptom, saveBMIRecord as saveBMIToSupabase, isDemoMode, saveVitals, getAllDoctorProfiles } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { usePatientData } from "@/hooks/usePatientData";
 import healthPattern from "@/assets/health-pattern.jpg";
@@ -211,6 +211,41 @@ export default function PatientDashboard() {
   const [isTyping, setIsTyping] = useState(false);
   const [chatMessages, setChatMessages] = useState<{id: number; sender: "doctor" | "patient"; content: string; timestamp: string; read: boolean}[]>([]);
   const [unreadChatCount] = useState(0);
+
+  // Doctor search / selection (patient side)
+  const [isDoctorSelectOpen, setIsDoctorSelectOpen] = useState(false);
+  const [doctorSearchQuery, setDoctorSearchQuery] = useState('');
+  const [availableDoctors, setAvailableDoctors] = useState<{ id: string; full_name: string; email: string }[]>([]);
+  const [selectedDoctorName, setSelectedDoctorName] = useState('');
+  const [doctorsLoading, setDoctorsLoading] = useState(false);
+
+  const openDoctorSelect = async () => {
+    setIsDoctorSelectOpen(true);
+    setDoctorSearchQuery('');
+    if (availableDoctors.length === 0) {
+      setDoctorsLoading(true);
+      try {
+        const docs = await getAllDoctorProfiles();
+        setAvailableDoctors(docs.map(d => ({ id: d.id, full_name: d.full_name, email: d.email ?? '' })));
+      } catch {
+        setAvailableDoctors([]);
+      } finally {
+        setDoctorsLoading(false);
+      }
+    }
+  };
+
+  const handleSelectDoctor = (doctorName: string) => {
+    setSelectedDoctorName(doctorName);
+    setChatMessages([]);
+    setIsDoctorSelectOpen(false);
+    setIsChatOpen(true);
+  };
+
+  const filteredDoctors = availableDoctors.filter(d =>
+    d.full_name.toLowerCase().includes(doctorSearchQuery.toLowerCase()) ||
+    d.email.toLowerCase().includes(doctorSearchQuery.toLowerCase())
+  );
 
   // Symptom form state
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([]);
@@ -1883,16 +1918,59 @@ export default function PatientDashboard() {
 
       {/* Floating Chat Button */}
       <ChatButton 
-        onClick={() => setIsChatOpen(true)}
+        onClick={openDoctorSelect}
         unreadCount={unreadChatCount}
-        isOpen={isChatOpen}
+        isOpen={isChatOpen || isDoctorSelectOpen}
       />
+
+      {/* Doctor selection modal */}
+      <GlassModal isOpen={isDoctorSelectOpen} onClose={() => setIsDoctorSelectOpen(false)}>
+        <h2 className="text-xl font-bold text-foreground mb-1">Chat with a Doctor</h2>
+        <p className="text-sm text-muted-foreground mb-4">Search for a doctor to start a conversation</p>
+        <div className="relative mb-4">
+          <input
+            type="text"
+            placeholder="Search by name or email…"
+            value={doctorSearchQuery}
+            onChange={e => setDoctorSearchQuery(e.target.value)}
+            className="w-full pl-4 pr-4 py-2.5 rounded-xl bg-secondary/50 border border-white/10 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/20 transition-all"
+          />
+        </div>
+        <div className="space-y-2 max-h-72 overflow-y-auto">
+          {doctorsLoading ? (
+            <p className="text-sm text-center text-muted-foreground py-8">Loading doctors…</p>
+          ) : filteredDoctors.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-sm text-muted-foreground">
+                {doctorSearchQuery ? 'No doctors match your search' : 'No doctors registered yet'}
+              </p>
+              <p className="text-xs text-muted-foreground/60 mt-1">Doctors will appear here once they create an account</p>
+            </div>
+          ) : (
+            filteredDoctors.map(doc => (
+              <button
+                key={doc.id}
+                onClick={() => handleSelectDoctor(doc.full_name)}
+                className="w-full p-3 rounded-xl bg-secondary/50 border border-white/10 text-left hover:bg-secondary hover:border-teal-500/30 transition-colors flex items-center gap-3"
+              >
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center text-white font-bold text-base flex-shrink-0">
+                  {doc.full_name.charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{doc.full_name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{doc.email}</p>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </GlassModal>
 
       {/* Chat Panel */}
       <ChatPanel
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
-        doctorName="Dr. Martinez"
+        doctorName={selectedDoctorName || 'Doctor'}
         isOnline={true}
         messages={chatMessages}
         onSendMessage={handleSendMessage}

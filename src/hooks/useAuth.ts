@@ -131,7 +131,18 @@ export function useAuth(): UseAuthReturn {
   const handleSignIn = async (data: SignInData) => {
     setState(prev => ({ ...prev, loading: true }))
     try {
-      await signIn(data)
+      const result = await signIn(data)
+      // Eagerly set user from the sign-in response — don't wait for onAuthStateChange.
+      // Without this, there is a window where loading=false but user=null, causing
+      // "No user ID provided" if the user tries to save data immediately after login.
+      if (result?.user) {
+        setState(prev => ({
+          ...prev,
+          user: result.user,
+          session: result.session,
+        }))
+        fetchProfile(result.user.id)
+      }
     } finally {
       setState(prev => ({ ...prev, loading: false }))
     }

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Search, User } from "lucide-react";
+import { Search, User, X } from "lucide-react";
 import { useState } from "react";
 
 export interface Conversation {
@@ -16,12 +16,14 @@ interface ConversationListProps {
   conversations: Conversation[];
   selectedConversationId: number | null;
   onSelectConversation: (patientId: number) => void;
+  onClose?: () => void;
 }
 
 export function ConversationList({ 
   conversations, 
   selectedConversationId, 
-  onSelectConversation 
+  onSelectConversation,
+  onClose,
 }: ConversationListProps) {
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -33,7 +35,18 @@ export function ConversationList({
     <div className="flex flex-col h-full bg-secondary/20 border-r border-white/10">
       {/* Header */}
       <div className="p-3 sm:p-4 border-b border-white/10">
-        <h2 className="text-base sm:text-lg font-bold text-foreground mb-3">Messages</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-base sm:text-lg font-bold text-foreground">Messages</h2>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-secondary/50 hover:bg-secondary flex items-center justify-center transition-colors"
+              aria-label="Close messages"
+            >
+              <X className="w-4 h-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
         
         {/* Search Bar */}
         <div className="relative">
