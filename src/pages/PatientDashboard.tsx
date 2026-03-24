@@ -35,7 +35,7 @@ import { GlassModal } from "@/components/GlassModal";
 import { ChatButton } from "@/components/ChatButton";
 import { ChatPanel } from "@/components/ChatPanel";
 import { toast } from "@/hooks/use-toast";
-import { logSymptom, saveBMIRecord as saveBMIToSupabase, isDemoMode, saveVitals, getAllDoctorProfiles } from "@/lib/supabase";
+import { logSymptom, saveBMIRecord as saveBMIToSupabase, isDemoMode, saveVitals, getAllDoctorProfiles, updateProfile } from "@/lib/supabase";
 import { useAuth } from "@/hooks/useAuth";
 import { usePatientData } from "@/hooks/usePatientData";
 import healthPattern from "@/assets/health-pattern.jpg";
@@ -78,7 +78,7 @@ const bodyLocations = [
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
-  const { profile, user, signOut } = useAuth();
+  const { profile, user, signOut, refreshProfile } = useAuth();
   const { symptoms, bmiRecords, latestVitals, vitalsHistory, loading: dataLoading, refresh, patchLatestVitals } = usePatientData(user?.id ?? '');
 
   // Dynamic quick stats from real Supabase data
@@ -169,6 +169,21 @@ export default function PatientDashboard() {
   const [vitalsForm, setVitalsForm] = useState({ heartRate: '', systolicBp: '', diastolicBp: '', sleepHours: '', oxygenSat: '', temperature: '', notes: '' });
   const [isSavingVitals, setIsSavingVitals] = useState(false);
 
+  // Profile editing state
+  const [profileForm, setProfileForm] = useState({ fullName: '', age: '', gender: '' });
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+
+  // Sync profile form when profile loads
+  useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        fullName: profile.full_name || '',
+        age: profile.age?.toString() || '',
+        gender: profile.gender || '',
+      });
+    }
+  }, [profile]);
+
   // Appointments — localStorage backed
   const [appointments, setAppointments] = useState<SavedAppointment[]>(loadAppointments);
   const [bookingForm, setBookingForm] = useState({ doctor: 'Dr. Martinez (General)', date: '', reason: '' });
@@ -205,6 +220,24 @@ export default function PatientDashboard() {
     date: new Date(r.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     bmi: r.bmi_value,
   }));
+
+  // Pre-populate BMI from latest saved record so it persists across sessions
+  useEffect(() => {
+    if (bmiRecords.length > 0 && bmiValue === null) {
+      const latest = bmiRecords[0]; // already sorted desc by created_at
+      const val = typeof latest.bmi_value === 'string' ? parseFloat(latest.bmi_value) : latest.bmi_value;
+      setBmiValue(val);
+      const cat = latest.category;
+      const categoryDisplay: Record<string, { label: string; color: string; description: string }> = {
+        underweight: { label: "Underweight", color: "blue", description: "Your BMI is below the healthy range. Consider consulting a healthcare provider about nutrition." },
+        normal: { label: "Normal Weight", color: "green", description: "Your BMI is in the healthy range. Keep up your current lifestyle!" },
+        overweight: { label: "Overweight", color: "yellow", description: "Your BMI is above the healthy range. Consider healthy diet and exercise adjustments." },
+        obese: { label: "Obese", color: "red", description: "Your BMI indicates obesity. Consult a healthcare provider for a personalized health plan." },
+      };
+      setBmiCategory(categoryDisplay[cat] || null);
+      setShowBMIResult(true);
+    }
+  }, [bmiRecords]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Chat state
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -472,6 +505,10 @@ export default function PatientDashboard() {
 
   const saveBMIRecord = async () => {
     if (!isDemoMode() && bmiValue && bmiCategory) {
+      if (!user?.id) {
+        toast({ title: "Not Signed In", description: "Please sign in again to save your BMI.", variant: "destructive" });
+        return;
+      }
       try {
         // Convert to metric for DB storage
         let heightCm = parseFloat(height);
@@ -491,14 +528,15 @@ export default function PatientDashboard() {
           weight_kg: parseFloat(weightKg.toFixed(2)),
           bmi_value: bmiValue,
           category: categoryMap[bmiCategory.label] || "normal",
-        }, user?.id ?? '');
+        }, user.id);
         const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Save timed out')), 15000)
+          setTimeout(() => reject(new Error('Save timed out — check your internet connection')), 15000)
         );
         await Promise.race([savePromise, timeoutPromise]);
-      } catch (err) {
+      } catch (err: unknown) {
         console.error('BMI save failed:', err);
-        toast({ title: "Save Failed", description: "Could not save BMI record. Please try again.", variant: "destructive" });
+        const message = err instanceof Error ? err.message : 'Could not save BMI record. Please try again.';
+        toast({ title: "Save Failed", description: message, variant: "destructive" });
         return;
       }
     }
@@ -513,6 +551,32 @@ export default function PatientDashboard() {
 
     setIsBMIModalOpen(false);
     resetBMICalculator();
+  };
+
+  // Save profile edits
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+    const trimmedName = profileForm.fullName.trim();
+    if (!trimmedName) {
+      toast({ title: "Name Required", description: "Please enter your full name.", variant: "destructive" });
+      return;
+    }
+    setIsSavingProfile(true);
+    try {
+      await updateProfile(user.id, {
+        full_name: trimmedName,
+        age: profileForm.age ? parseInt(profileForm.age) : null,
+        gender: profileForm.gender || null,
+      });
+      toast({ title: "Profile Updated", description: "Your profile has been saved." });
+      // Refresh profile in auth context
+      if (refreshProfile) refreshProfile();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not update profile.';
+      toast({ title: "Update Failed", description: msg, variant: "destructive" });
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   const handleSaveVitals = async () => {
@@ -1339,26 +1403,60 @@ export default function PatientDashboard() {
                 <div className="space-y-3">
                   <div className="p-4 rounded-xl bg-secondary/50 border border-white/10 flex items-center gap-4">
                     <div className="w-14 h-14 rounded-full bg-gradient-to-br from-primary to-accent flex items-center justify-center text-xl font-bold text-white">
-                      {displayName.charAt(0).toUpperCase()}
+                      {(profileForm.fullName || displayName).charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-base font-semibold text-foreground">{profile?.full_name || displayName}</p>
                       <p className="text-xs text-muted-foreground">{user?.email || 'No email'}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">Role: {profile?.role || 'patient'}</p>
                     </div>
                   </div>
                   <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
-                    <p className="text-sm font-medium text-foreground">Age</p>
-                    <p className="text-xs text-muted-foreground">{profile?.age ? `${profile.age} years` : 'Not set'}</p>
+                    <label className="text-sm font-medium text-foreground block mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      value={profileForm.fullName}
+                      onChange={e => setProfileForm(f => ({ ...f, fullName: e.target.value }))}
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      placeholder="Enter your name"
+                    />
                   </div>
                   <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
-                    <p className="text-sm font-medium text-foreground">Gender</p>
-                    <p className="text-xs text-muted-foreground">{profile?.gender ? profile.gender.charAt(0).toUpperCase() + profile.gender.slice(1) : 'Not set'}</p>
+                    <label className="text-sm font-medium text-foreground block mb-1">Age</label>
+                    <input
+                      type="number"
+                      value={profileForm.age}
+                      onChange={e => setProfileForm(f => ({ ...f, age: e.target.value }))}
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-teal-500"
+                      placeholder="Enter your age"
+                      min="1"
+                      max="150"
+                    />
+                  </div>
+                  <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
+                    <label className="text-sm font-medium text-foreground block mb-1">Gender</label>
+                    <select
+                      value={profileForm.gender}
+                      onChange={e => setProfileForm(f => ({ ...f, gender: e.target.value }))}
+                      className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-teal-500"
+                    >
+                      <option value="">Select gender</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                      <option value="prefer_not_to_say">Prefer not to say</option>
+                    </select>
                   </div>
                   <div className="p-3 rounded-xl bg-secondary/50 border border-white/10">
                     <p className="text-sm font-medium text-foreground">Member since</p>
                     <p className="text-xs text-muted-foreground">{profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Unknown'}</p>
                   </div>
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={isSavingProfile}
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-teal-500 to-cyan-500 text-white font-medium text-sm hover:opacity-90 transition-opacity disabled:opacity-50"
+                  >
+                    {isSavingProfile ? 'Saving…' : 'Save Profile'}
+                  </button>
                 </div>
               </div>
             )}

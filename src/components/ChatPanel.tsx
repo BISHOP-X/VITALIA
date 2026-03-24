@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, User } from "lucide-react";
+import { X, Send, User, ChevronLeft } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { TypingIndicator } from "./TypingIndicator";
@@ -106,6 +106,17 @@ export function ChatPanel({
             {/* Header */}
             <div className="flex items-center justify-between p-4 sm:p-5 border-b border-white/10 bg-secondary/30">
               <div className="flex items-center gap-3">
+                {/* Back Button */}
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={onClose}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-secondary/50 hover:bg-secondary 
+                           flex items-center justify-center transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                </motion.button>
+
                 {/* Doctor Avatar */}
                 <div className="relative">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-teal-500 to-cyan-500 flex items-center justify-center">

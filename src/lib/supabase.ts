@@ -434,6 +434,29 @@ export async function getPatientVitals(patientId: string) {
 }
 
 // ============================================
+// PROFILE UPDATE
+// ============================================
+
+/**
+ * Update the current user's profile.
+ * Only updates the fields provided (partial update).
+ */
+export async function updateProfile(
+  userId: string,
+  updates: { full_name?: string; age?: number | null; gender?: string | null }
+) {
+  if (!userId) throw new Error('No user ID provided')
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any)
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId)
+
+  if (error) throw error
+}
+
+// ============================================
 // DEMO MODE CHECK
 // ============================================
 
