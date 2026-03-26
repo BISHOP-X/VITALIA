@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { ArrowRight, Heart, Shield, Sparkles } from "lucide-react";
 import { AuthModal } from "@/components/AuthModal";
-import heroImage from "@/assets/hero-wellness.jpg";
 
 export default function Landing() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -28,11 +27,11 @@ export default function Landing() {
       {/* Full-bleed hero background */}
       <div className="absolute inset-0">
         <img
-          src={heroImage}
-          alt="Doctor and patient connection"
+          src="/image.png"
+          alt="Vitalia"
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-transparent to-transparent" />
       </div>
 
